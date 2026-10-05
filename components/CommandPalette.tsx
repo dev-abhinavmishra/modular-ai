@@ -130,6 +130,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, notes, o
                         exit={{ opacity: 0, y: 4, scale: 0.995 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
                         className="w-full max-w-lg bg-card border border-line-2 rounded-[var(--r-lg)] shadow-pop overflow-hidden"
+                        role="dialog"
+                        aria-label="Command palette"
                         onClick={e => e.stopPropagation()}
                         onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
                     >
@@ -142,6 +144,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, notes, o
                                 onChange={e => { setQuery(e.target.value); setActive(0); }}
                                 onKeyDown={onKeyDown}
                                 placeholder="Search notes and commands…"
+                                aria-label="Search notes and commands"
                                 className="flex-1 bg-transparent outline-none text-sm text-ink placeholder:text-ink-3 font-sans"
                             />
                             <Kbd>esc</Kbd>
