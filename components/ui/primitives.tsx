@@ -228,6 +228,6 @@ export const ProgressBar: React.FC<{ value: number; className?: string }> = ({ v
 export const Stat: React.FC<{ value: string | number; label: string; className?: string }> = ({ value, label, className = '' }) => (
     <div className={`flex flex-col ${className}`}>
         <span className="font-serif text-2xl text-ink leading-none">{value}</span>
-        <span className="font-mono text-[10px] text-ink-3 mt-1.5 uppercase tracking-wide">{label}</span>
+        <span className="font-mono text-[10px] text-ink-3 mt-1.5">{label}</span>
     </div>
 );

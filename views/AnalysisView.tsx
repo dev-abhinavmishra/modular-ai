@@ -386,7 +386,26 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                 </header>
 
                 {/* Messages */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5 custom-scrollbar">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
+                    {messages.length <= 1 && !loading ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center rise">
+                            <div className="w-11 h-11 rounded-[var(--r-lg)] bg-card border border-line shadow-card flex items-center justify-center">
+                                <Icon name="forum" size={20} className="text-mark" />
+                            </div>
+                            <h2 className="font-serif text-[26px] text-ink mt-5">Ask your notes</h2>
+                            <p className="text-[13px] text-ink-2 mt-2.5 max-w-md leading-relaxed">
+                                Quiz yourself, build timelines, compare ideas, or pull out takeaways — across your whole library.
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-2 mt-7">
+                                {suggestions.map((s, i) => (
+                                    <Btn key={i} size="sm" icon={s.icon} onClick={() => handleSend(s.query)}>
+                                        {s.label}
+                                    </Btn>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                    <div className="space-y-5">
                     {messages.map((msg, idx) => (
                         <div key={msg.id || idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                             {msg.role === 'model' ? (
@@ -430,21 +449,13 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                             </div>
                         </div>
                     )}
+                    </div>
+                    )}
                 </div>
 
                 {/* Input */}
                 <div className="border-t border-line px-4 md:px-8 py-4 shrink-0">
                     <div className="max-w-3xl mx-auto flex flex-col gap-3">
-                        {messages.length <= 1 && (
-                            <div className="flex flex-wrap gap-2">
-                                {suggestions.map((s, i) => (
-                                    <Btn key={i} size="sm" icon={s.icon} onClick={() => handleSend(s.query)}>
-                                        {s.label}
-                                    </Btn>
-                                ))}
-                            </div>
-                        )}
-
                         {contextualAttachments.length > 0 && (
                             <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                                 {contextualAttachments.map((text, idx) => (

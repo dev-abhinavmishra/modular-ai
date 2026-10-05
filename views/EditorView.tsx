@@ -73,6 +73,7 @@ const EditorView: React.FC<EditorViewProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const savedRangeRef = useRef<Range | null>(null);
     const titleRef = useRef(title);
+    const titleElRef = useRef<HTMLTextAreaElement>(null);
     const noteRef = useRef(note);
     const contentRef = useRef(content);
     const saveStateRef = useRef(saveState);
@@ -82,6 +83,15 @@ const EditorView: React.FC<EditorViewProps> = ({
     contentRef.current = content;
     saveStateRef.current = saveState;
     onUpdateRef.current = onUpdate;
+
+    // The title is a textarea so long names wrap instead of clipping;
+    // grow it to fit its content.
+    useEffect(() => {
+        const el = titleElRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [title]);
 
     const checkEmpty = useCallback(() => {
         const el = editorRef.current;
@@ -156,7 +166,7 @@ const EditorView: React.FC<EditorViewProps> = ({
     const handleInput = () => syncContent();
 
     const onTitleChange = (v: string) => {
-        setTitle(v);
+        setTitle(v.replace(/\n+/g, ' '));
         setSaveState('saving');
     };
 
@@ -575,10 +585,18 @@ const EditorView: React.FC<EditorViewProps> = ({
                                 {/* ruled left margin */}
                                 <div className="absolute top-0 bottom-0 left-8 sm:left-11 w-px bg-[var(--mark)] opacity-25 pointer-events-none" />
                                 <div className="pl-12 sm:pl-16 pr-5 sm:pr-10 py-8 sm:py-10">
-                                    <input
+                                    <textarea
+                                        ref={titleElRef}
                                         value={title}
+                                        rows={1}
                                         onChange={(e) => onTitleChange(e.target.value)}
-                                        className="w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                editorRef.current?.focus();
+                                            }
+                                        }}
+                                        className="w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60 resize-none overflow-hidden"
                                         placeholder="Untitled"
                                         aria-label="Note title"
                                     />

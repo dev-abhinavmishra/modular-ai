@@ -12,8 +12,39 @@ const TYPE_ICON: Record<Note['type'], string> = {
     VIDEO: 'videocam',
 };
 
+// Notes store dates in a mix of ISO and locale strings depending on where
+// they were created — normalize to one short form for the meta line.
+const shortDate = (raw?: string): string => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    return d.toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
+    });
+};
+
+// Durations are stored formatted ("24:07") but older rows may hold a bare
+// second count — render those as m:ss.
+const showDuration = (d?: string | number): string | undefined => {
+    if (d === undefined || d === null || d === '') return undefined;
+    const raw = String(d).trim();
+    if (!/^\d+$/.test(raw)) return raw;
+    const s = parseInt(raw, 10);
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+};
+
 const metaLine = (note: Note) =>
-    [note.date, note.type.toLowerCase(), note.duration].filter(Boolean).join(' · ');
+    [shortDate(note.date), note.type.toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
+
+// First lines of body text as a preview, like a peek at the card's contents.
+const snippetOf = (html: string): string =>
+    (new DOMParser()
+        .parseFromString((html || '').replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|ul|ol)>/gi, '</$1> '), 'text/html')
+        .body.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
 const CheckBox: React.FC<{ checked: boolean; visible: boolean }> = ({ checked, visible }) => (
     <span
@@ -50,6 +81,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
 }) => {
     const stop = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
     const handleOpen = () => (selectionActive ? onToggleSelect(note.id) : onOpen(note));
+    const snippet = snippetOf(note.content);
 
     if (layout === 'list') {
         return (
@@ -67,8 +99,11 @@ const NoteCard: React.FC<NoteCardProps> = ({
                     <CheckBox checked={selected} visible={selectionActive} />
                 </button>
                 <Icon name={TYPE_ICON[note.type]} size={16} className="relative z-10 text-ink-3 shrink-0" />
-                <span className="relative z-10 font-serif text-[15px] text-ink truncate flex-1 min-w-0">
+                <span className="relative z-10 font-serif text-[15px] text-ink truncate shrink-0 max-w-[40%]">
                     {note.title || 'Untitled'}
+                </span>
+                <span className="relative z-10 hidden md:block text-[12px] text-ink-3 truncate flex-1 min-w-0">
+                    {snippet}
                 </span>
                 <span className="relative z-10 hidden lg:flex items-center gap-1 shrink-0">
                     {(note.tags || []).slice(0, 2).map(t => <Tag key={t}>{t}</Tag>)}
@@ -116,6 +151,11 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 <h3 className={`font-serif text-ink leading-snug line-clamp-2 ${compact ? 'text-[15px]' : 'text-[17px]'}`}>
                     {note.title || 'Untitled'}
                 </h3>
+                {!compact && snippet && (
+                    <p className="mt-1.5 text-[12px] text-ink-2 leading-relaxed line-clamp-3">
+                        {snippet}
+                    </p>
+                )}
                 {!compact && (note.tags || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2.5">
                         {note.tags.slice(0, 3).map(t => <Tag key={t}>{t}</Tag>)}
