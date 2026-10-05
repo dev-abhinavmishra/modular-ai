@@ -69,8 +69,14 @@ const EditorView: React.FC<EditorViewProps> = ({
     const savedRangeRef = useRef<Range | null>(null);
     const titleRef = useRef(title);
     const noteRef = useRef(note);
+    const contentRef = useRef(content);
+    const saveStateRef = useRef(saveState);
+    const onUpdateRef = useRef(onUpdate);
     titleRef.current = title;
     noteRef.current = note;
+    contentRef.current = content;
+    saveStateRef.current = saveState;
+    onUpdateRef.current = onUpdate;
 
     const checkEmpty = useCallback(() => {
         const el = editorRef.current;
@@ -119,6 +125,21 @@ const EditorView: React.FC<EditorViewProps> = ({
         const timer = setTimeout(saveNow, 1600);
         return () => clearTimeout(timer);
     }, [content, title, saveState, saveNow]);
+
+    // Flush a pending autosave when leaving the editor so the last
+    // keystrokes inside the debounce window are not lost. Refs are
+    // detached before this cleanup runs, so read the synced content
+    // state rather than the DOM element.
+    useEffect(() => () => {
+        if (saveStateRef.current === 'saving') {
+            onUpdateRef.current({
+                ...noteRef.current,
+                title: titleRef.current,
+                content: contentRef.current,
+                lastAccessed: new Date().toISOString(),
+            });
+        }
+    }, []);
 
     const handleInput = () => syncContent();
 
@@ -448,7 +469,7 @@ const EditorView: React.FC<EditorViewProps> = ({
     return (
         <main className="flex-1 flex flex-col min-w-0 relative bg-paper">
             {!focusMode && (
-                <header className="shrink-0 h-14 border-b border-line flex items-center gap-1.5 px-3 sm:px-4 bg-paper z-10">
+                <header className="shrink-0 h-14 border-b border-line flex items-center gap-1.5 px-3 sm:px-4 bg-paper z-20">
                     <IconBtn icon="arrow_back" onClick={onBack} title="Back to notes" />
                     <IconBtn
                         icon="keep"

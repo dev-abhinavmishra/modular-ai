@@ -10,6 +10,7 @@ interface RecorderViewProps {
     onCancel: () => void;
     autoGenerateTitles: boolean;
     micDeviceId?: string;
+    onSelectMic?: (deviceId: string) => void;
 }
 
 const formatTime = (totalSeconds: number) => {
@@ -20,7 +21,7 @@ const formatTime = (totalSeconds: number) => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 };
 
-const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, autoGenerateTitles, micDeviceId }) => {
+const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, autoGenerateTitles, micDeviceId, onSelectMic }) => {
     const [recorderState, setRecorderState] = useState<'idle' | 'recording' | 'paused'>('idle');
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingStage, setProcessingStage] = useState<'transcribing' | 'structuring'>('transcribing');
@@ -305,7 +306,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
                     <Icon name="mic" size={16} className="text-ink-3 hidden sm:block" />
                     <Select
                         value={selectedMic}
-                        onChange={e => setSelectedMic(e.target.value)}
+                        onChange={e => { setSelectedMic(e.target.value); onSelectMic?.(e.target.value); }}
                         disabled={recorderState !== 'idle'}
                         title={recorderState !== 'idle' ? 'Microphone is locked while recording' : 'Microphone'}
                         className="h-8 max-w-[180px] sm:max-w-[220px] text-xs truncate"

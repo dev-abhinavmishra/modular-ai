@@ -174,8 +174,10 @@ const App: React.FC = () => {
             tags: [],
             lastAccessed: new Date().toISOString(),
         };
-        handleSaveNote(note);
-        handleOpenNote(note);
+        // Not persisted until the first real edit — backing out of an
+        // untouched note leaves nothing behind in the library.
+        setActiveNote(note);
+        setCurrentView(View.EDITOR);
     };
 
     const handleClearData = async () => {
@@ -200,6 +202,7 @@ const App: React.FC = () => {
         notes,
         onOpenNote: handleOpenNote,
         onNavigate: setCurrentView,
+        onNewNote: handleNewNote,
         onDeleteNote: handleDeleteNote,
         compactMode: settings.compactMode,
     };
@@ -223,6 +226,7 @@ const App: React.FC = () => {
                         onCancel={() => setCurrentView(View.LIBRARY)}
                         autoGenerateTitles={settings.autoGenerateTitles}
                         micDeviceId={settings.micDeviceId}
+                        onSelectMic={(id) => setSettings(s => ({ ...s, micDeviceId: id }))}
                     />
                 );
             case View.EDITOR:

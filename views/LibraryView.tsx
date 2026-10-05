@@ -13,6 +13,7 @@ interface LibraryViewProps {
     notes: Note[];
     onOpenNote: (note: Note) => void;
     onNavigate: (view: View) => void;
+    onNewNote: () => void;
     onImport: (note: Note) => void;
     onDeleteNote: (noteId: string) => void;
     filterView?: View;
@@ -38,7 +39,7 @@ const SORTERS: Record<SortKey, (a: Note, b: Note) => number> = {
 };
 
 const LibraryView: React.FC<LibraryViewProps> = ({
-    notes = [], onOpenNote, onNavigate, onImport, onDeleteNote, filterView, compactMode = false,
+    notes = [], onOpenNote, onNavigate, onNewNote, onImport, onDeleteNote, filterView, compactMode = false,
 }) => {
     const canImport = !filterView;
 
@@ -166,17 +167,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
     /* ---- create / navigate ---- */
     const handleNewNote = useCallback(() => {
-        onImport({
-            id: newNoteId(),
-            title: '',
-            date: new Date().toLocaleDateString(),
-            content: '',
-            transcript: '',
-            type: 'TEXT',
-            tags: [],
-            lastAccessed: new Date().toISOString(),
-        });
-    }, [onImport]);
+        onNewNote();
+    }, [onNewNote]);
 
     /* ---- drag & drop ---- */
     const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
