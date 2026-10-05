@@ -16,6 +16,7 @@ interface LibraryViewProps {
     onNewNote: () => void;
     onImport: (note: Note) => void;
     onDeleteNote: (noteId: string) => void;
+    onUpdateNote?: (note: Note) => void;
     filterView?: View;
     compactMode?: boolean;
 }
@@ -39,7 +40,7 @@ const SORTERS: Record<SortKey, (a: Note, b: Note) => number> = {
 };
 
 const LibraryView: React.FC<LibraryViewProps> = ({
-    notes = [], onOpenNote, onNavigate, onNewNote, onImport, onDeleteNote, filterView, compactMode = false,
+    notes = [], onOpenNote, onNavigate, onNewNote, onImport, onDeleteNote, onUpdateNote, filterView, compactMode = false,
 }) => {
     const canImport = !filterView;
 
@@ -57,10 +58,10 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     const dragDepth = useRef(0);
     const importer = useNoteImport(onImport);
 
-    /* Contract gap: the fixed props give no update-note channel (onImport also
-       opens the editor), so pin toggles persist via saveNote and patch the
-       displayed note locally. Sibling view instances (Bookmarks/History mount
-       fresh) merge pin state back from IndexedDB so they stay consistent. */
+    /* App's notes[] stays the source of truth: patchNote routes through
+       onUpdateNote (handleSaveNote) so a pin can't be clobbered by a stale
+       copy later. The overrides/IDB merge stays as a fast local fallback for
+       contexts that don't pass the prop. */
     const [idbPins, setIdbPins] = useState<Map<string, boolean> | null>(null);
     useEffect(() => {
         let live = true;
@@ -79,9 +80,11 @@ const LibraryView: React.FC<LibraryViewProps> = ({
     );
 
     const patchNote = useCallback((note: Note, patch: Partial<Note>) => {
+        const updated = { ...note, ...patch };
         setOverrides(prev => ({ ...prev, [note.id]: { ...prev[note.id], ...patch } }));
-        saveNote({ ...note, ...patch }).catch(err => console.error('Failed to update note:', err));
-    }, []);
+        if (onUpdateNote) onUpdateNote(updated);
+        else saveNote(updated).catch(err => console.error('Failed to update note:', err));
+    }, [onUpdateNote]);
 
     const togglePin = useCallback((note: Note) => {
         patchNote(note, { isBookmarked: !note.isBookmarked });

@@ -19,11 +19,13 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
                     <Icon name="schedule" size={20} className="text-warn" />
                 </div>
 
-                <h2 className="font-serif text-xl text-ink">Daily limit reached</h2>
+                <h2 className="font-serif text-xl text-ink">
+                    {usage.remaining > 0 ? 'Free daily uses' : 'Daily limit reached'}
+                </h2>
                 <p className="text-sm text-ink-2 mt-2 leading-relaxed">
-                    You've used your {usage.limit} free AI actions for today — recording,
-                    notes, Ask and Study all draw from the same pool. It resets
-                    automatically tomorrow.
+                    {usage.remaining > 0
+                        ? `You have ${usage.remaining} of ${usage.limit} free AI actions left today — recording, notes, Ask and Study all draw from the same pool. It resets automatically tomorrow.`
+                        : `You've used your ${usage.limit} free AI actions for today — recording, notes, Ask and Study all draw from the same pool. It resets automatically tomorrow.`}
                 </p>
 
                 <div className="mt-4 flex items-center justify-between rounded-[var(--r)] border border-line bg-card-2 px-3 py-2.5">

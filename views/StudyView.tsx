@@ -5,7 +5,7 @@ import DeckGrid from '../components/study/DeckGrid';
 import DeckEditor from '../components/study/DeckEditor';
 import ReviewSession from '../components/study/ReviewSession';
 import QuizRunner from '../components/study/QuizRunner';
-import { createDeck, createQuiz, dueCards, getAllDecks, getAllQuizzes, totalDue } from '../services/studyService';
+import { createDeck, createQuiz, correctOptionIndex, dueCards, getAllDecks, getAllQuizzes, totalDue } from '../services/studyService';
 import { deleteQuiz } from '../services/storageService';
 import { parseJsonArray, runAction } from '../services/aiService';
 
@@ -68,6 +68,7 @@ const StudyView: React.FC<StudyViewProps> = ({ notes, onOpenNote }) => {
         try {
             if (target === 'deck') {
                 const res = await runAction('flashcards', text);
+                if (res.error) { setGenError(res.error); return; }
                 const cards = parseJsonArray<{ front?: string; back?: string }>(res.content)
                     .filter(c => typeof c?.front === 'string' && typeof c?.back === 'string' && c.front.trim() && c.back.trim());
                 if (cards.length === 0) {
@@ -80,9 +81,17 @@ const StudyView: React.FC<StudyViewProps> = ({ notes, onOpenNote }) => {
                 }
             } else {
                 const res = await runAction('quiz', text);
+                if (res.error) { setGenError(res.error); return; }
                 const questions = parseJsonArray<QuizQuestion>(res.content)
                     .filter(q => typeof q?.question === 'string' && Array.isArray(q?.options)
-                        && q.options.length >= 2 && typeof q?.answer === 'string');
+                        && q.options.length >= 2 && typeof q?.answer === 'string')
+                    // Keep only questions whose answer resolves to an option;
+                    // normalize to the option's exact text so grading can't miss.
+                    .map(q => {
+                        const i = correctOptionIndex(q.options, q.answer);
+                        return i === -1 ? null : { ...q, answer: q.options[i] };
+                    })
+                    .filter((q): q is QuizQuestion => q !== null);
                 if (questions.length === 0) {
                     setGenError("Couldn't make a quiz from that note. Try another one.");
                 } else {

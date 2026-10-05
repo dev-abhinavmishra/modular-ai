@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Btn, Icon } from '../ui/primitives';
-import { createQuiz } from '../../services/studyService';
+import { createQuiz, correctOptionIndex } from '../../services/studyService';
+import { sanitizeHtml } from '../../services/sanitize';
 import { QuizQuestion } from '../../types';
 
 interface QuizSetWidgetProps {
@@ -18,7 +19,7 @@ const QuizSetWidget: React.FC<QuizSetWidgetProps> = ({ data }) => {
 
     const answered = Object.keys(selected).length;
     const score = questions.reduce(
-        (n, q, i) => n + (selected[i] !== undefined && q.options[selected[i]] === q.answer ? 1 : 0),
+        (n, q, i) => n + (selected[i] !== undefined && selected[i] === correctOptionIndex(q.options, q.answer) ? 1 : 0),
         0
     );
 
@@ -57,12 +58,12 @@ const QuizSetWidget: React.FC<QuizSetWidgetProps> = ({ data }) => {
                     <div key={qi}>
                         <div className="flex gap-3 mb-2.5">
                             <span className="font-mono text-[10px] text-ink-3 mt-1 shrink-0 w-5">{String(qi + 1).padStart(2, '0')}</span>
-                            <p className="text-sm font-medium text-ink leading-relaxed" dangerouslySetInnerHTML={{ __html: q.question }} />
+                            <p className="text-sm font-medium text-ink leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.question) }} />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-8">
                             {q.options?.map((opt, oi) => {
                                 const isSel = selected[qi] === oi;
-                                const isCorrect = opt === q.answer;
+                                const isCorrect = oi === correctOptionIndex(q.options, q.answer);
                                 let cls = 'border-line-2 bg-card-2 text-ink-2 hover:border-[var(--ink-3)] hover:text-ink';
                                 if (checked) {
                                     if (isCorrect) cls = 'border-[var(--ok)]/60 bg-[var(--ok)]/10 text-ink';
@@ -83,7 +84,7 @@ const QuizSetWidget: React.FC<QuizSetWidgetProps> = ({ data }) => {
                                                 : 'border-[var(--line-2)] text-ink-3'}`}>
                                             {String.fromCharCode(65 + oi)}
                                         </span>
-                                        <span className="leading-snug" dangerouslySetInnerHTML={{ __html: opt }} />
+                                        <span className="leading-snug" dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt) }} />
                                     </button>
                                 );
                             })}

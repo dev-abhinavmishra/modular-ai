@@ -191,6 +191,17 @@ export const getNoteVersions = async (noteId: string): Promise<NoteVersion[]> =>
         .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
 };
 
+export const getAllNoteVersions = async (): Promise<NoteVersion[]> =>
+    tx(VERSIONS_STORE, 'readonly', s => s.getAll() as IDBRequest<NoteVersion[]>);
+
+/* Restore version records verbatim (backup import) — unlike saveNoteVersion,
+   which mints a fresh id/timestamp. */
+export const putNoteVersions = async (versions: NoteVersion[]): Promise<void> => {
+    for (const v of versions) {
+        await tx(VERSIONS_STORE, 'readwrite', s => s.put(v));
+    }
+};
+
 export const deleteNoteVersions = async (noteId: string): Promise<void> => {
     const all = await getNoteVersions(noteId);
     for (const v of all) {

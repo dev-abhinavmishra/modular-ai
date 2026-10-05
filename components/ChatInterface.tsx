@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { generateChatResponse } from '../services/aiService';
 import { ChatMessage } from '../types';
 import { Icon } from './ui/primitives';
+import { sanitizeHtml } from '../services/sanitize';
 
 interface ChatInterfaceProps {
     context: string;
@@ -44,7 +45,7 @@ const renderMarkdown = (text: string) => {
 
     html = html.replace(/\n\n/g, '<br/><br/>');
 
-    return { __html: html };
+    return { __html: sanitizeHtml(html) };
 };
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ context, contextualAttachments = [], setContextualAttachments }) => {

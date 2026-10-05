@@ -9,6 +9,8 @@ const LIMIT_MESSAGE = "You've reached your free limit. Your quota resets automat
 export interface ChatResult {
     content: string;
     provider?: string;
+    /* Set when the call failed — callers must not treat `content` as model output. */
+    error?: string;
 }
 
 // 1. Chat with Context
@@ -159,8 +161,8 @@ export const runAction = async (action: AIAction, text: string, context?: string
         const data = await res.json();
         return { content: data.content, provider: data.provider };
     } catch (error: any) {
-        if (error instanceof LimitReachedError) return { content: LIMIT_MESSAGE };
-        return { content: error.message || 'The AI action failed. Try again.' };
+        if (error instanceof LimitReachedError) return { content: '', error: LIMIT_MESSAGE };
+        return { content: '', error: error.message || 'The AI action failed. Try again.' };
     }
 };
 

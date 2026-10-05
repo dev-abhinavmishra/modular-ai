@@ -1,4 +1,5 @@
 import React from 'react';
+import { sanitizeHtml } from '../../services/sanitize';
 
 interface TimelineWidgetProps {
     data: any;
@@ -30,7 +31,7 @@ const TimelineWidget: React.FC<TimelineWidgetProps> = ({ data }) => {
                         </div>
                         <div className={`flex-1 min-w-0 ${i < events.length - 1 ? 'pb-4' : ''}`}>
                             <span className="font-mono text-[11px] text-mark">{ev.date}</span>
-                            <p className="text-[13px] text-ink-2 leading-relaxed mt-1" dangerouslySetInnerHTML={{ __html: ev.description }} />
+                            <p className="text-[13px] text-ink-2 leading-relaxed mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHtml(ev.description) }} />
                         </div>
                     </div>
                 ))}

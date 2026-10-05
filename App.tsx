@@ -144,9 +144,10 @@ const App: React.FC = () => {
             }
         });
 
-        if (activeNote?.id === updatedNote.id) {
-            setActiveNote(updatedNote);
-        }
+        // Functional update: a stale closure (e.g. the editor's unmount flush
+        // firing after another note was opened) must not resurrect the old
+        // note as active — only replace it when it still is the active one.
+        setActiveNote(prev => (prev?.id === updatedNote.id ? updatedNote : prev));
     };
 
     const handleToggleBookmark = (note: Note) => {
@@ -204,6 +205,7 @@ const App: React.FC = () => {
         onNavigate: setCurrentView,
         onNewNote: handleNewNote,
         onDeleteNote: handleDeleteNote,
+        onUpdateNote: (n: Note) => handleSaveNote(n, false),
         compactMode: settings.compactMode,
     };
 

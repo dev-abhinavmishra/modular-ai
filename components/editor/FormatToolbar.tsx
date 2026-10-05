@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Icon, TextInput, Btn } from '../ui/primitives';
 
 export interface FormatState {
@@ -56,6 +56,7 @@ const FormatToolbar: React.FC<FormatToolbarProps> = ({
 }) => {
     const [linkOpen, setLinkOpen] = useState(false);
     const [url, setUrl] = useState('');
+    const linkBtnRef = useRef<HTMLDivElement>(null);
 
     const applyLink = () => {
         const u = url.trim();
@@ -63,6 +64,10 @@ const FormatToolbar: React.FC<FormatToolbarProps> = ({
         setLinkOpen(false);
         setUrl('');
     };
+
+    // The toolbar row scrolls horizontally (overflow-x-auto clips absolutely
+    // positioned children) — anchor the link form to the viewport instead.
+    const anchor = linkOpen && linkBtnRef.current ? linkBtnRef.current.getBoundingClientRect() : null;
 
     return (
         <div className="h-10 shrink-0 border-b border-line bg-paper flex items-center px-2.5 gap-0.5 overflow-x-auto custom-scrollbar relative z-20">
@@ -91,7 +96,7 @@ const FormatToolbar: React.FC<FormatToolbarProps> = ({
             <TBtn icon="code" title="Code block" active={state.block === 'pre'} onPress={() => onCommand('formatBlock', 'pre')} />
             <Sep />
             <TBtn icon="table" title="Insert table" onPress={onInsertTable} />
-            <div className="relative shrink-0">
+            <div className="relative shrink-0" ref={linkBtnRef}>
                 <TBtn
                     icon="link"
                     title="Insert link"
@@ -101,9 +106,11 @@ const FormatToolbar: React.FC<FormatToolbarProps> = ({
                         setLinkOpen(true);
                     }}
                 />
-                {linkOpen && (
+            </div>
+            {anchor && (
                     <div
-                        className="absolute left-0 top-full mt-1 z-50 w-64 bg-card border border-line-2 rounded-[var(--r)] shadow-pop pop-in p-2 flex items-center gap-1.5"
+                        className="fixed z-50 w-64 bg-card border border-line-2 rounded-[var(--r)] shadow-pop pop-in p-2 flex items-center gap-1.5"
+                        style={{ top: anchor.bottom + 6, left: Math.max(8, Math.min(anchor.left, window.innerWidth - 272)) }}
                         onMouseDown={(e) => e.stopPropagation()}
                     >
                         <TextInput
@@ -119,8 +126,7 @@ const FormatToolbar: React.FC<FormatToolbarProps> = ({
                         />
                         <Btn size="sm" variant="primary" onClick={applyLink}>Apply</Btn>
                     </div>
-                )}
-            </div>
+            )}
             <TBtn icon="horizontal_rule" title="Divider" onPress={() => onCommand('insertHorizontalRule')} />
             <TBtn icon="format_clear" title="Clear formatting" onPress={onClear} />
             <div className="flex-1" />

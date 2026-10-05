@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sanitizeHtml } from '../../services/sanitize';
 import { Btn, Icon, IconBtn } from '../ui/primitives';
 import { createDeck } from '../../services/studyService';
 
@@ -60,7 +61,7 @@ const FlashcardWidget: React.FC<FlashcardWidgetProps> = ({ data }) => {
                             )}
                         </div>
                         <div className="flex-1 flex items-center justify-center overflow-y-auto custom-scrollbar">
-                            <p className="font-serif text-xl text-ink text-center leading-snug" dangerouslySetInnerHTML={{ __html: card.front }} />
+                            <p className="font-serif text-xl text-ink text-center leading-snug" dangerouslySetInnerHTML={{ __html: sanitizeHtml(card.front) }} />
                         </div>
                         <div className="flex items-center justify-center gap-1.5 text-ink-3">
                             <Icon name="sync" size={13} />
@@ -76,7 +77,7 @@ const FlashcardWidget: React.FC<FlashcardWidgetProps> = ({ data }) => {
                             )}
                         </div>
                         <div className="flex-1 flex items-center justify-center overflow-y-auto custom-scrollbar">
-                            <p className="font-serif text-base text-ink text-center leading-relaxed" dangerouslySetInnerHTML={{ __html: card.back }} />
+                            <p className="font-serif text-base text-ink text-center leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(card.back) }} />
                         </div>
                     </div>
                 </div>

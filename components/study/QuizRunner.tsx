@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Quiz } from '../../types';
 import { Btn, Icon, IconBtn, ProgressBar } from '../ui/primitives';
-import { recordQuizAttempt } from '../../services/studyService';
+import { recordQuizAttempt, correctOptionIndex } from '../../services/studyService';
 
 interface QuizRunnerProps {
     quiz: Quiz;
@@ -9,16 +9,6 @@ interface QuizRunnerProps {
 }
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-/* The model is asked to copy the correct option verbatim, but tolerate
-   trim/case drift so a quiz is never silently unanswerable. */
-const correctIndex = (options: string[], answer: string): number => {
-    const a = answer.trim();
-    let i = options.findIndex(o => o === a);
-    if (i === -1) i = options.findIndex(o => o.trim() === a);
-    if (i === -1) i = options.findIndex(o => o.trim().toLowerCase() === a.toLowerCase());
-    return i;
-};
 
 /* One question at a time: pick → reveal → next. Each completed run is
    persisted as an attempt via recordQuizAttempt. */
@@ -37,7 +27,7 @@ const QuizRunner: React.FC<QuizRunnerProps> = ({ quiz: initialQuiz, onExit }) =>
 
     const question = quiz.questions[idx];
     const answerIdx = useMemo(
-        () => (question ? correctIndex(question.options, question.answer) : -1),
+        () => (question ? correctOptionIndex(question.options, question.answer) : -1),
         [question]
     );
 

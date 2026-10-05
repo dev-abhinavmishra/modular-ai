@@ -13,6 +13,7 @@ import AudioPlayer from '../components/editor/AudioPlayer';
 import RelatedNotes from '../components/editor/RelatedNotes';
 import { runAction } from '../services/aiService';
 import { exportNoteMarkdown, exportNoteHtml } from '../services/exportService';
+import { sanitizeHtml } from '../services/sanitize';
 
 interface EditorViewProps {
     note: Note;
@@ -45,6 +46,9 @@ const cleanHtmlOf = (el: HTMLElement): string => {
 const stripTags = (html: string): string =>
     new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
 
+const escapeHtmlText = (s: string): string =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 const EditorView: React.FC<EditorViewProps> = ({
     note, notes, onBack, onUpdate, onToggleBookmark, onOpenNote, contextualAttachments, setContextualAttachments, settings,
 }) => {
@@ -64,6 +68,7 @@ const EditorView: React.FC<EditorViewProps> = ({
     const [exportOpen, setExportOpen] = useState(false);
     const [isEmpty, setIsEmpty] = useState(false);
     const [versionTick, setVersionTick] = useState(0);
+    const [aiError, setAiError] = useState<string | null>(null);
     const [format, setFormat] = useState<FormatState>({ bold: false, italic: false, underline: false, strike: false, block: 'p' });
     const containerRef = useRef<HTMLDivElement>(null);
     const savedRangeRef = useRef<Range | null>(null);
@@ -107,7 +112,7 @@ const EditorView: React.FC<EditorViewProps> = ({
     useEffect(() => {
         if (editorRef.current) {
             unwrapFindMarks(editorRef.current);
-            editorRef.current.innerHTML = note.content;
+            editorRef.current.innerHTML = sanitizeHtml(note.content);
         }
         setTitle(note.title);
         setContent(note.content);
@@ -125,6 +130,13 @@ const EditorView: React.FC<EditorViewProps> = ({
         const timer = setTimeout(saveNow, 1600);
         return () => clearTimeout(timer);
     }, [content, title, saveState, saveNow]);
+
+    // Auto-dismiss inline-AI errors.
+    useEffect(() => {
+        if (!aiError) return;
+        const t = setTimeout(() => setAiError(null), 5000);
+        return () => clearTimeout(t);
+    }, [aiError]);
 
     // Flush a pending autosave when leaving the editor so the last
     // keystrokes inside the debounce window are not lost. Refs are
@@ -233,9 +245,15 @@ const EditorView: React.FC<EditorViewProps> = ({
         const saved = range.cloneRange();
 
         const result = await runAction(action, selectedText, noteRef.current.transcript);
-        const html = result.content.includes('<')
-            ? result.content
-            : result.content.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+        if (result.error || !result.content.trim()) {
+            setAiError(result.error || 'The AI returned nothing usable.');
+            return;
+        }
+        const html = sanitizeHtml(
+            result.content.includes('<')
+                ? result.content
+                : result.content.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+        );
 
         el.focus();
         sel.removeAllRanges();
@@ -418,8 +436,8 @@ const EditorView: React.FC<EditorViewProps> = ({
     });
 
     const handleExportPDF = () => {
-        const html = editorRef.current ? cleanHtmlOf(editorRef.current) : content;
-        const safeTitle = title || 'Untitled';
+        const html = sanitizeHtml(editorRef.current ? cleanHtmlOf(editorRef.current) : content);
+        const safeTitle = escapeHtmlText(title || 'Untitled');
         const win = window.open('', '_blank');
         if (!win) {
             alert('Please allow pop-ups to export this note as a PDF.');
@@ -627,7 +645,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                             refreshKey={versionTick}
                             onRestore={(html) => {
                                 if (editorRef.current) {
-                                    editorRef.current.innerHTML = html;
+                                    editorRef.current.innerHTML = sanitizeHtml(html);
                                     handleInput();
                                 }
                                 setPanel('chat');
@@ -647,6 +665,14 @@ const EditorView: React.FC<EditorViewProps> = ({
                 onMark={() => wrapSelection('mark')}
                 onAI={runInlineAI}
             />
+
+            {aiError && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pop-in flex items-center gap-2 bg-card border border-[var(--bad)]/40 rounded-[var(--r)] shadow-pop px-4 py-2.5">
+                    <Icon name="error" size={16} className="text-bad shrink-0" />
+                    <span className="font-sans text-[13px] text-ink">{aiError}</span>
+                    <IconBtn icon="close" size={14} title="Dismiss" onClick={() => setAiError(null)} />
+                </div>
+            )}
 
             {/* Assistant — mobile overlay */}
             {showMobileAssistant && (

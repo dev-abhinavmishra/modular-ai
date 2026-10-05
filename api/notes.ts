@@ -26,22 +26,26 @@ export default async function handler(req: any, res: any) {
         // POST: Create or Update a note
         if (req.method === 'POST') {
             const note = readJsonBody(req);
-            
-            // Map camelCase (frontend) to snake_case (Supabase) if necessary, 
-            // but we'll try to keep them compatible or use a mapping.
-            // Based on our SQL: is_bookmarked, source_data
+
+            // Map camelCase (frontend) to snake_case (Supabase) with an explicit
+            // column allowlist — spreading the whole Note would send client-only
+            // fields (pinnedMoments, isProcessing, ...) the table doesn't have,
+            // and PostgREST rejects the upsert.
             const dbNote = {
-                ...note,
+                id: note.id,
+                title: note.title,
+                date: note.date,
+                duration: note.duration,
+                content: note.content,
+                transcript: note.transcript,
+                type: note.type,
+                tags: note.tags,
+                attachments: note.attachments,
                 is_bookmarked: note.isBookmarked,
                 last_accessed: note.lastAccessed,
                 source_data: note.sourceData,
                 updated_at: new Date().toISOString()
             };
-            
-            // Remove the camelCase versions to keep DB clean
-            delete dbNote.isBookmarked;
-            delete dbNote.lastAccessed;
-            delete dbNote.sourceData;
 
             const { data, error } = await supabase
                 .from('notes')

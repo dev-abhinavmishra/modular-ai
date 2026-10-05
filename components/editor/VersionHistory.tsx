@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NoteVersion } from '../../types';
 import { getNoteVersions } from '../../services/storageService';
 import { Btn, Spinner, Divider } from '../ui/primitives';
+import { sanitizeHtml } from '../../services/sanitize';
 
 interface VersionHistoryProps {
     noteId: string;
@@ -75,7 +76,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ noteId, refreshKey, onR
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3">
                         <div
                             className="note-body text-[13px] border border-line rounded-[var(--r)] bg-card-2 p-3 [&_*]:!text-ink-2"
-                            dangerouslySetInnerHTML={{ __html: selected.content }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(selected.content) }}
                         />
                     </div>
                     <Divider />

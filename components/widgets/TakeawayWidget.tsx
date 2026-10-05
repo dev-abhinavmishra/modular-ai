@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '../ui/primitives';
+import { sanitizeHtml } from '../../services/sanitize';
 
 interface TakeawayWidgetProps {
     data: any;
@@ -12,7 +13,7 @@ const TakeawayWidget: React.FC<TakeawayWidgetProps> = ({ data }) => (
             <Icon name="edit_note" size={16} className="text-mark" />
             <h4 className="text-[13px] font-semibold text-ink">{data.title || 'Takeaway'}</h4>
         </div>
-        <p className="text-[13px] text-ink-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: data.description }} />
+        <p className="text-[13px] text-ink-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.description) }} />
     </div>
 );
 

@@ -77,6 +77,21 @@ export const createQuiz = async (title: string, questions: QuizQuestion[], sourc
     return quiz;
 };
 
+/* Index of the correct option for a quiz answer. The model is asked to copy
+   the option verbatim; tolerate trim/case drift and single-letter answers
+   ("B") so a generated question is never silently unanswerable. -1 = no match. */
+export const correctOptionIndex = (options: string[], answer: string): number => {
+    const a = (answer ?? '').trim();
+    let i = options.findIndex(o => o === a);
+    if (i === -1) i = options.findIndex(o => o.trim() === a);
+    if (i === -1) i = options.findIndex(o => o.trim().toLowerCase() === a.toLowerCase());
+    if (i === -1 && /^[A-F]$/i.test(a)) {
+        const letter = a.toUpperCase().charCodeAt(0) - 65;
+        if (letter < options.length) i = letter;
+    }
+    return i;
+};
+
 export const recordQuizAttempt = async (quiz: Quiz, score: number): Promise<Quiz> => {
     const updated: Quiz = {
         ...quiz,

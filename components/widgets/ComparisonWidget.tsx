@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '../ui/primitives';
+import { sanitizeHtml } from '../../services/sanitize';
 
 interface ComparisonWidgetProps {
     data: any;
@@ -10,7 +11,7 @@ const Points: React.FC<{ points?: string[] }> = ({ points }) => (
         {(points || []).map((p, i) => (
             <li key={i} className="flex gap-2.5 text-[13px] text-ink-2 leading-relaxed">
                 <span className="w-1 h-1 rounded-[1px] bg-[var(--ink-3)] mt-[7px] shrink-0" />
-                <span dangerouslySetInnerHTML={{ __html: p }} />
+                <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(p) }} />
             </li>
         ))}
     </ul>

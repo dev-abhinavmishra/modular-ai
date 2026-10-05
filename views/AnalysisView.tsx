@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { generateGlobalAnalysis, getAnalysisSessions, loadAnalysisSession, saveAnalysisSession, deleteAnalysisSession, generateTitle } from '../services/aiService';
 import { Note, ChatMessage } from '../types';
+import { sanitizeHtml } from '../services/sanitize';
 import { Btn, Icon, IconBtn, Modal } from '../components/ui/primitives';
 import QuizSetWidget from '../components/widgets/QuizSetWidget';
 import FlashcardWidget from '../components/widgets/FlashcardWidget';
@@ -51,7 +52,7 @@ const ActionItemWidget: React.FC<{ data: any }> = ({ data }) => {
                 {done && <Icon name="check" size={13} className="text-[var(--mark-ink)]" />}
             </button>
             <div className="flex-1 min-w-0">
-                <p className={`text-[13px] leading-snug ${done ? 'text-ink-3 line-through' : 'text-ink'}`} dangerouslySetInnerHTML={{ __html: data.task }} />
+                <p className={`text-[13px] leading-snug ${done ? 'text-ink-3 line-through' : 'text-ink'}`} dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.task) }} />
                 {data.assignee && <span className="font-mono text-[10px] text-ink-3 mt-1 block">{data.assignee}</span>}
             </div>
         </div>
@@ -319,7 +320,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
         return (
             <div className="space-y-2">
-                <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }} />
                 {widgets.length > 0 && (
                     <div className="mt-5 pt-4 border-t border-line space-y-2">
                         {widgets}
