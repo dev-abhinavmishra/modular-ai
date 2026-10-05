@@ -1,6 +1,7 @@
 import React from 'react';
 import { Note } from '../../types';
 import { Card, Icon, IconBtn, Tag } from '../ui/primitives';
+import { shortDate, showDuration } from '../../services/format';
 
 export type CardLayout = 'grid' | 'list';
 
@@ -12,39 +13,32 @@ const TYPE_ICON: Record<Note['type'], string> = {
     VIDEO: 'videocam',
 };
 
-// Notes store dates in a mix of ISO and locale strings depending on where
-// they were created — normalize to one short form for the meta line.
-const shortDate = (raw?: string): string => {
-    if (!raw) return '';
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    const sameYear = d.getFullYear() === new Date().getFullYear();
-    return d.toLocaleDateString(undefined, {
-        month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
-    });
-};
-
-// Durations are stored formatted ("24:07") but older rows may hold a bare
-// second count — render those as m:ss.
-const showDuration = (d?: string | number): string | undefined => {
-    if (d === undefined || d === null || d === '') return undefined;
-    const raw = String(d).trim();
-    if (!/^\d+$/.test(raw)) return raw;
-    const s = parseInt(raw, 10);
-    const m = Math.floor(s / 60);
-    return `${m}:${String(s % 60).padStart(2, '0')}`;
-};
-
 const metaLine = (note: Note) =>
     [shortDate(note.date), note.type.toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
 
 // First lines of body text as a preview, like a peek at the card's contents.
 const snippetOf = (html: string): string =>
     (new DOMParser()
-        .parseFromString((html || '').replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|ul|ol)>/gi, '</$1> '), 'text/html')
+        .parseFromString(
+            (html || '')
+                .replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|ul|ol)>/gi, '</$1> ')
+                .replace(/<(p|div|ul|ol|h[1-6]|blockquote|pre|table)[\s>]/gi, ' <$1'),
+            'text/html'
+        )
         .body.textContent || '')
         .replace(/\s+/g, ' ')
         .trim();
+
+// Card content often opens with a heading that repeats the note title —
+// don't echo it in the preview.
+const snippetFor = (note: Note): string => {
+    const s = snippetOf(note.content || '');
+    const t = (note.title || '').trim();
+    if (t && s.toLowerCase().startsWith(t.toLowerCase())) {
+        return s.slice(t.length).replace(/^[-–—:.,\s]+/, '').trim();
+    }
+    return s;
+};
 
 const CheckBox: React.FC<{ checked: boolean; visible: boolean }> = ({ checked, visible }) => (
     <span
@@ -81,7 +75,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
 }) => {
     const stop = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
     const handleOpen = () => (selectionActive ? onToggleSelect(note.id) : onOpen(note));
-    const snippet = snippetOf(note.content);
+    const snippet = snippetFor(note);
 
     if (layout === 'list') {
         return (

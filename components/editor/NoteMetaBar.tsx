@@ -1,4 +1,5 @@
 import React from 'react';
+import { shortDate, showDuration } from '../../services/format';
 
 interface NoteMetaBarProps {
     date: string;
@@ -11,13 +12,14 @@ const Dot = () => <span className="text-ink-3 select-none">·</span>;
 
 const NoteMetaBar: React.FC<NoteMetaBarProps> = ({ date, duration, words, saveState }) => {
     const readMin = Math.max(1, Math.ceil(words / 200));
+    const dur = showDuration(duration);
     return (
         <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 font-mono text-[11px] text-ink-3 mt-1.5">
-            <span>{date}</span>
-            {duration && (
+            <span>{shortDate(date)}</span>
+            {dur && (
                 <>
                     <Dot />
-                    <span>{duration}</span>
+                    <span>{dur}</span>
                 </>
             )}
             <Dot />

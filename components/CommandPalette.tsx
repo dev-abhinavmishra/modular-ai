@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Note, View } from '../types';
 import { searchNotes } from '../services/searchService';
+import { shortDate } from '../services/format';
 import { Icon, Kbd } from './ui/primitives';
 
 interface CommandPaletteProps {
@@ -201,7 +202,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, notes, o
                                                     {n.title || 'Untitled'}
                                                 </span>
                                                 <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-3">
-                                                    {n.type.toLowerCase()} · {n.date}
+                                                    {n.type.toLowerCase()} · {shortDate(n.date)}
                                                 </span>
                                             </button>
                                         );

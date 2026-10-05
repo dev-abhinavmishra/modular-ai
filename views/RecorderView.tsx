@@ -103,6 +103,10 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
         chunksRef.current = [];
 
         try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                setErrorMessage('Recording needs a secure context — open the app over HTTPS or localhost.');
+                return;
+            }
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: true,
