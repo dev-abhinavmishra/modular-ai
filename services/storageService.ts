@@ -84,6 +84,7 @@ export const saveNote = async (note: Note): Promise<void> => {
 
 export const deleteNote = async (id: string): Promise<void> => {
     await tx(NOTES_STORE, 'readwrite', s => s.delete(id));
+    await deleteNoteVersions(id).catch(() => {});
     // Sync to cloud in background
     deleteNoteFromCloud(id);
 };
@@ -159,6 +160,7 @@ export const deleteNotesBefore = async (date: Date): Promise<number> => {
 
 export const clearAllNotes = async (): Promise<void> => {
     await tx(NOTES_STORE, 'readwrite', s => s.clear());
+    await tx(VERSIONS_STORE, 'readwrite', s => s.clear());
 };
 
 /* ---------- Note versions (history snapshots) ---------- */

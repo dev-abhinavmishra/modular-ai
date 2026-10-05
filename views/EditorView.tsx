@@ -280,6 +280,8 @@ const EditorView: React.FC<EditorViewProps> = ({
             : anchor.parentElement;
         while (block && block !== root && !block.matches(BLOCK_SEL)) block = block.parentElement;
         if (!block || block === root || !root.contains(block)) block = null;
+        // Converting an <li> would nest one list inside another's item — skip.
+        if (block && block.tagName === 'LI') return;
         const beforeCaret = block
             ? (block.textContent || '')
             : (anchor.nodeType === 3 && root.contains(anchor) ? (anchor.nodeValue || '') : '');
@@ -291,22 +293,29 @@ const EditorView: React.FC<EditorViewProps> = ({
         const hit = trigger[beforeCaret.trim()];
         if (!hit) return;
         e.preventDefault();
-        if (block) {
-            block.innerHTML = '';
-            // innerHTML clears the caret — put it back inside the emptied block
-            // so execCommand targets this block and nothing else.
-            const range = document.createRange();
-            range.selectNodeContents(block);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
+
+        // Build the target element directly. Chrome's execCommand on a freshly
+        // emptied block pulls the previous sibling's text into the new element
+        // (paragraph → list item, or into the blockquote), corrupting the note.
+        const el = document.createElement(hit);
+        if (hit === 'ul' || hit === 'ol') {
+            const li = document.createElement('li');
+            li.appendChild(document.createElement('br'));
+            el.appendChild(li);
         } else {
-            anchor.nodeValue = '';
-            sel.collapse(anchor, 0);
+            el.appendChild(document.createElement('br'));
         }
-        if (hit === 'ul') document.execCommand('insertUnorderedList');
-        else if (hit === 'ol') document.execCommand('insertOrderedList');
-        else document.execCommand('formatBlock', false, hit);
+        const target: Node | null = block ?? (anchor.nodeType === 3 && root.contains(anchor) ? anchor : null);
+        if (target && target.parentNode) target.parentNode.replaceChild(el, target);
+        else root.appendChild(el);
+
+        const caretEl: Element = el.firstElementChild ?? el;
+        const range = document.createRange();
+        range.setStart(caretEl, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        el.scrollIntoView({ block: 'nearest' });
         updateFormat();
         syncContent();
     };
