@@ -5,6 +5,9 @@ interface AudioVisualizerProps {
   analyser: AnalyserNode | null;
 }
 
+/* Oscilloscope strip: thin ticks on a hairline baseline. Ink at rest,
+   vermilion where there's signal. Reads colors from the CSS tokens so it
+   follows light/dark automatically. */
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, analyser }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
@@ -12,128 +15,92 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, analyser })
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle high-DPI displays
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
+    let width = 0;
+    let height = 0;
 
-    // Set actual size in memory (scaled to account for extra pixel density)
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.max(1, Math.round(width * dpr));
+      canvas.height = Math.max(1, Math.round(height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
 
-    // Normalize coordinate system to use css pixels
-    ctx.scale(dpr, dpr);
-
-    const renderWidth = rect.width;
-    const renderHeight = rect.height;
-
-    // Get theme color from CSS variable
-    const computedStyle = getComputedStyle(document.documentElement);
-    // Parse RGB from e.g. "196 242 13" or fallback
-    const themeRgbString = computedStyle.getPropertyValue('--theme-rgb').trim() || '196 242 13';
+    const css = () => getComputedStyle(document.documentElement);
+    const token = (name: string) => css().getPropertyValue(name).trim() || css().color;
+    let mark = token('--mark');
+    let ink3 = token('--ink-3');
+    let line = token('--line-2');
 
     const animate = () => {
       requestRef.current = requestAnimationFrame(animate);
-      ctx.clearRect(0, 0, renderWidth, renderHeight);
+      // Refresh token colors cheaply (covers theme flips)
+      mark = token('--mark');
+      ink3 = token('--ink-3');
+      line = token('--line-2');
 
-      if (isActive && analyser) {
-        const bufferLength = analyser.frequencyBinCount; // 256 for fftSize 512
-        const dataArray = new Uint8Array(bufferLength);
-        analyser.getByteFrequencyData(dataArray);
+      ctx.clearRect(0, 0, width, height);
 
-        // Visual settings
-        const barsToDraw = 30; // Number of bars on one side (total = barsToDraw * 2 + 1 center)
-        const spacing = 4;
-        const width = 6;
-        const cx = renderWidth / 2;
+      const tickW = 2;
+      const gap = 5;
+      const count = Math.max(1, Math.floor(width / (tickW + gap)));
+      const baseY = height / 2;
 
-        // Draw center bar first
-        const centerValue = dataArray[0] || 0;
-        const centerPercent = centerValue / 255;
-        const centerH = Math.max(width, centerPercent * (renderHeight * 0.8));
+      // Hairline baseline
+      ctx.fillStyle = line;
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(0, baseY - 0.5, width, 1);
+      ctx.globalAlpha = 1;
 
-        ctx.fillStyle = `rgba(${themeRgbString}, ${Math.max(0.4, centerPercent)})`;
-        drawRoundedRect(ctx, cx - width / 2, (renderHeight - centerH) / 2, width, centerH, width / 2);
+      const dataArray = analyser && isActive ? new Uint8Array(analyser.frequencyBinCount) : null;
+      if (dataArray && analyser) analyser.getByteFrequencyData(dataArray);
 
-        // Draw symmetrical bars
-        for (let i = 1; i <= barsToDraw; i++) {
-          // Map visualization index to frequency index (logarithmic-ish or linear mapping)
-          // We focus on the lower half of frequencies where voice usually resides
-          const freqIndex = Math.floor(i * (bufferLength / 2.5) / barsToDraw);
-          const value = dataArray[freqIndex] || 0;
-          const percent = value / 255;
-          const height = Math.max(4, percent * (renderHeight * 0.8));
+      const t = Date.now() / 1000;
 
-          const xOffset = i * (width + spacing);
-          const opacity = Math.max(0.2, percent);
+      for (let i = 0; i < count; i++) {
+        const x = i * (tickW + gap);
+        let h: number;
+        let color: string;
+        let alpha: number;
 
-          ctx.fillStyle = `rgba(${themeRgbString}, ${opacity})`;
-
-          // Right side
-          drawRoundedRect(ctx, cx + xOffset - width / 2, (renderHeight - height) / 2, width, height, width / 2);
-
-          // Left side
-          drawRoundedRect(ctx, cx - xOffset - width / 2, (renderHeight - height) / 2, width, height, width / 2);
+        if (isActive && dataArray) {
+          // Map the tick index into the lower two-thirds of the spectrum (voice)
+          const fi = Math.floor((i / count) * dataArray.length * 0.66);
+          const v = (dataArray[fi] || 0) / 255;
+          h = Math.max(3, v * height * 0.85);
+          color = v > 0.02 ? mark : ink3;
+          alpha = v > 0.02 ? 0.35 + v * 0.65 : 0.35;
+        } else {
+          // Resting strip: small ticks with a slow breathing wave
+          h = 3 + Math.abs(Math.sin(t * 1.2 + i * 0.35)) * 3;
+          color = ink3;
+          alpha = 0.35;
         }
 
-      } else {
-        // Idle state: pulsing dots line
-        const cx = renderWidth / 2;
-        const width = 4;
-        const height = 4;
-        const spacing = 8;
-        const dots = 20;
-
-        const time = Date.now() / 1000;
-
-        for (let i = 0; i <= dots; i++) {
-          const xOffset = i * (width + spacing);
-          // Subtle wave effect
-          const alpha = 0.1 + Math.abs(Math.sin(time + i * 0.2)) * 0.2;
-
-          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-
-          if (i === 0) {
-            drawRoundedRect(ctx, cx - width / 2, (renderHeight - height) / 2, width, height, width / 2);
-          } else {
-            drawRoundedRect(ctx, cx + xOffset - width / 2, (renderHeight - height) / 2, width, height, width / 2);
-            drawRoundedRect(ctx, cx - xOffset - width / 2, (renderHeight - height) / 2, width, height, width / 2);
-          }
-        }
+        ctx.fillStyle = color;
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(x, baseY - h / 2, tickW, h);
       }
+      ctx.globalAlpha = 1;
     };
 
     animate();
 
     return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      cancelAnimationFrame(requestRef.current);
+      ro.disconnect();
     };
   }, [isActive, analyser]);
 
   return <canvas ref={canvasRef} className="w-full h-full" />;
 };
-
-// Helper for rounded rects if ctx.roundRect is not fully supported or for simpler control
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  if (h < w) r = h / 2; // Cap radius
-  if (ctx.roundRect) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-    ctx.fill();
-  } else {
-    // Fallback
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
 
 export default AudioVisualizer;

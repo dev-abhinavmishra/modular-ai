@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { generateChatResponse } from '../services/aiService';
 import { ChatMessage } from '../types';
-import ThinkingOrbs from './ThinkingOrbs';
+import { Icon } from './ui/primitives';
 
 interface ChatInterfaceProps {
     context: string;
@@ -9,28 +10,20 @@ interface ChatInterfaceProps {
     setContextualAttachments?: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-// Simple markdown parser for bold, italic, lists, code
+// Simple markdown parser for bold, italic, lists, code — token-styled.
 const renderMarkdown = (text: string) => {
-    // Escape HTML first (rudimentary)
     let html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    // Bold
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-[var(--theme-color)]">$1</strong>');
-
-    // Italic
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-ink">$1</strong>');
     html = html.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+    html = html.replace(/`(.*?)`/g, '<code class="bg-[var(--card-2)] px-1 py-0.5 rounded font-mono text-[11px] border border-[var(--line)]">$1</code>');
 
-    // Inline Code
-    html = html.replace(/`(.*?)`/g, '<code class="bg-black/20 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-xs border border-white/5">$1</code>');
-
-    // Unordered lists (rudimentary: must be at start of line or following newline)
-    // Note: This simple regex won't handle nested lists perfectly but works for simple AI outputs
     if (html.includes('\n- ') || html.includes('\n* ')) {
         const lines = html.split('\n');
         let inList = false;
-        let newLines = [];
+        const newLines: string[] = [];
 
-        for (let line of lines) {
+        for (const line of lines) {
             if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
                 if (!inList) {
                     newLines.push('<ul class="list-disc pl-4 space-y-1 my-2">');
@@ -49,7 +42,6 @@ const renderMarkdown = (text: string) => {
         html = newLines.join('\n');
     }
 
-    // Paragraphs (double newlines)
     html = html.replace(/\n\n/g, '<br/><br/>');
 
     return { __html: html };
@@ -61,32 +53,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ context, contextualAttach
     const [loading, setLoading] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Reset chat when context (note) changes
     useEffect(() => {
         setMessages([
             {
                 id: 'init',
                 role: 'model',
-                text: "I've analyzed this session. I can help you clarify concepts, summarize key points, or find specific details.",
+                text: "Ask about this note — I can clarify concepts, summarize sections, or find specific details.",
                 timestamp: new Date()
             }
         ]);
     }, [context]);
 
-    // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, loading]);
 
+    // Auto-grow the textarea as the input wraps
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }, [input]);
+
     const handleSend = async () => {
         if (!input.trim() && contextualAttachments.length === 0) return;
 
         let finalInput = input;
-        
-        // Prepend attachments if any exist
+
         if (contextualAttachments.length > 0) {
             const attachmentsBlock = contextualAttachments.map(text => `> ${text}`).join('\n>\n');
             finalInput = `${attachmentsBlock}\n\n${input}`.trim();
@@ -95,8 +93,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ context, contextualAttach
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: finalInput, timestamp: new Date() };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
-        
-        // Clear global attachments
+
         if (setContextualAttachments) {
             setContextualAttachments([]);
         }
@@ -127,43 +124,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ context, contextualAttach
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-[#f4f4f5] dark:bg-[#09090b]">
-            {/* Messages Area - Scrollable */}
+        <div className="flex-1 flex flex-col min-h-0 bg-paper">
+            {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                 {messages.map((msg) => (
-                    <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'model' ? 'bg-white/5 border border-black/5 dark:border-white/10' : 'bg-neutral-200 dark:bg-white'}`}>
-                            {msg.role === 'model' ?
-                                <span className="material-symbols-outlined text-xs text-[var(--theme-color)]">smart_toy</span> :
-                                <span className="text-black text-[10px] font-bold">You</span>
-                            }
-                        </div>
-                        <div className={`flex flex-col gap-0.5 ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[90%]`}>
-                            <span className={`text-[10px] font-bold text-neutral-500 dark:text-neutral-400 ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
-                                {msg.role === 'model' ? 'AI Assistant' : 'You'}
-                            </span>
+                    <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                        {msg.role === 'model' ? (
+                            <div className="w-6 h-6 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 mt-0.5">
+                                <Icon name="chat" size={12} className="text-ink-3" />
+                            </div>
+                        ) : <div className="w-6 shrink-0" />}
+                        <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[90%]`}>
                             <div
-                                className={`p-3 rounded-xl text-xs leading-relaxed shadow-sm ${msg.role === 'model'
-                                        ? 'bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 text-slate-700 dark:text-neutral-300'
-                                        : 'bg-[var(--theme-color)] text-black font-medium shadow-[var(--theme-color)]/10'
-                                    } ${msg.role === 'model' ? 'rounded-bl-none' : 'rounded-br-none'}`}
-                                dangerouslySetInnerHTML={msg.role === 'model' ? renderMarkdown(msg.text) : { __html: msg.text }}
+                                className={`px-3 py-2.5 rounded-[var(--r-lg)] text-xs leading-relaxed ${msg.role === 'model'
+                                    ? 'bg-card border border-line text-ink shadow-card'
+                                    : 'bg-[var(--mark-soft)] border border-[var(--mark)]/25 text-ink'}`}
+                                dangerouslySetInnerHTML={msg.role === 'model' ? renderMarkdown(msg.text) : { __html: msg.text.replace(/</g, '&lt;').replace(/\n/g, '<br/>') }}
                             />
                             {msg.role === 'model' && msg.id !== 'init' && (
-                                <div className="flex items-center gap-2 px-1">
+                                <div className="flex items-center gap-3 px-1">
                                     {msg.provider && (
-                                        <span className="text-[9px] text-neutral-400 dark:text-neutral-500 flex items-center gap-0.5">
-                                            <span className="material-symbols-outlined text-[10px]">bolt</span>
-                                            via {msg.provider}
-                                        </span>
+                                        <span className="font-mono text-[10px] text-ink-3">via {msg.provider}</span>
                                     )}
                                     <button
                                         onClick={() => handleCopy(msg.text, msg.id)}
-                                        className="text-[9px] text-neutral-400 dark:text-neutral-500 hover:text-[var(--theme-color)] flex items-center gap-0.5 transition-colors"
+                                        className="font-mono text-[10px] text-ink-3 hover:text-mark flex items-center gap-1 transition-colors"
                                         title="Copy"
                                     >
-                                        <span className="material-symbols-outlined text-[11px]">{copiedId === msg.id ? 'check' : 'content_copy'}</span>
-                                        {copiedId === msg.id ? 'Copied' : 'Copy'}
+                                        <Icon name={copiedId === msg.id ? 'check' : 'content_copy'} size={11} />
+                                        {copiedId === msg.id ? 'copied' : 'copy'}
                                     </button>
                                 </div>
                             )}
@@ -172,47 +161,66 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ context, contextualAttach
                 ))}
 
                 {loading && (
-                    <div className="flex gap-3">
-                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center shrink-0 border border-black/5 dark:border-white/10">
-                            <span className="material-symbols-outlined text-xs text-[var(--theme-color)]">smart_toy</span>
+                    <div className="flex gap-2.5">
+                        <div className="w-6 h-6 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 mt-0.5">
+                            <Icon name="chat" size={12} className="text-ink-3" />
                         </div>
-                        <ThinkingOrbs label="thinking…" />
+                        <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-3 flex items-center gap-2 py-2.5">
+                            {[0, 1, 2].map(i => (
+                                <motion.span
+                                    key={i}
+                                    className="w-1.5 h-1.5 rounded-[1px] bg-[var(--ink-3)]"
+                                    animate={{ opacity: [0.25, 1, 0.25] }}
+                                    transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
 
-            {/* Input Area - Fixed at Bottom */}
-            <div className="p-3 border-t border-black/5 dark:border-white/5 bg-white/50 dark:bg-black/20 backdrop-blur-sm flex flex-col gap-2">
-                {contextualAttachments && contextualAttachments.length > 0 && (
-                    <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+            {/* Input */}
+            <div className="p-3 border-t border-line flex flex-col gap-2">
+                {contextualAttachments.length > 0 && (
+                    <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
                         {contextualAttachments.map((text, idx) => (
-                            <div key={idx} className="bg-white dark:bg-white/5 border-l-2 border-[var(--theme-color)] rounded-r-lg px-3 py-2 flex items-start gap-2 shadow-sm group/att">
-                                <span className="material-symbols-outlined text-[14px] text-[var(--theme-color)] mt-0.5 shrink-0">format_quote</span>
-                                <p className="text-[10px] text-slate-600 dark:text-neutral-300 flex-1 line-clamp-2 leading-relaxed italic" title={text}>"{text}"</p>
-                                <button 
+                            <div key={idx} className="bg-[var(--tape)] border-l-2 border-[var(--mark)] rounded-r-[var(--r)] px-2.5 py-1.5 flex items-start gap-2 group/att">
+                                <Icon name="format_quote" size={12} className="text-mark mt-0.5 shrink-0" />
+                                <p className="text-[11px] text-ink-2 flex-1 line-clamp-2 leading-relaxed italic" title={text}>"{text}"</p>
+                                <button
                                     onClick={() => setContextualAttachments && setContextualAttachments(prev => prev.filter((_, i) => i !== idx))}
-                                    className="shrink-0 opacity-0 group-hover/att:opacity-100 hover:bg-red-500/10 text-red-500 rounded-full p-0.5 transition-all"
+                                    className="shrink-0 text-ink-3 hover:text-bad transition-colors"
+                                    title="Remove"
                                 >
-                                    <span className="material-symbols-outlined text-[12px]">close</span>
+                                    <Icon name="close" size={12} />
                                 </button>
                             </div>
                         ))}
                     </div>
                 )}
-                
-                <div className="relative group">
-                    <input
-                        className="w-full bg-white dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2.5 pr-10 text-xs text-slate-900 dark:text-white placeholder-neutral-500 focus:outline-none focus:border-[var(--theme-color)]/50 focus:ring-1 focus:ring-[var(--theme-color)]/50 transition-all shadow-inner font-body"
-                        placeholder="Ask about the content..."
+
+                <div className="flex items-end gap-2">
+                    <textarea
+                        ref={inputRef}
+                        rows={1}
+                        className="flex-1 bg-card-2 border border-line-2 rounded-[var(--r)] px-3 py-2 text-xs text-ink placeholder:text-ink-3 focus:outline-none focus:border-[var(--mark)] resize-none custom-scrollbar transition-colors"
+                        placeholder="Ask about this note…"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
                     />
                     <button
                         onClick={handleSend}
-                        className="absolute right-1.5 top-1.5 p-1 bg-[var(--theme-color)] rounded-md text-black hover:brightness-110 transition-colors shadow-lg shadow-[var(--theme-color)]/20"
+                        disabled={loading || (!input.trim() && contextualAttachments.length === 0)}
+                        title="Send"
+                        className="w-8 h-8 rounded-[var(--r)] bg-[var(--mark)] text-[var(--mark-ink)] flex items-center justify-center hover:brightness-110 active:scale-95 transition-all shadow-card disabled:opacity-45 disabled:pointer-events-none shrink-0"
                     >
-                        <span className="material-symbols-outlined text-[16px] font-bold">arrow_upward</span>
+                        <Icon name="arrow_upward" size={15} />
                     </button>
                 </div>
             </div>
