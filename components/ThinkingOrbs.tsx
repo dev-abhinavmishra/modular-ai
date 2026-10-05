@@ -1,36 +1,23 @@
+import { motion } from 'framer-motion';
+
 interface ThinkingOrbsProps {
     label?: string;
 }
 
+/* Three small paper squares being "dealt" in sequence — paper/mono, no neon. */
 const ThinkingOrbs: React.FC<ThinkingOrbsProps> = ({ label }) => {
     return (
-        <div className="flex items-center gap-[6px] mt-1.5">
-            <span
-                className="w-[9px] h-[9px] rounded-full"
-                style={{
-                    background: '#c4f20d',
-                    boxShadow: '0 0 10px rgba(196,242,13,.8)',
-                    animation: 'orb-bob 1.4s ease-in-out infinite',
-                }}
-            />
-            <span
-                className="w-[9px] h-[9px] rounded-full"
-                style={{
-                    background: '#7877ff',
-                    boxShadow: '0 0 10px rgba(120,119,255,.8)',
-                    animation: 'orb-bob 1.4s ease-in-out 0.18s infinite',
-                }}
-            />
-            <span
-                className="w-[9px] h-[9px] rounded-full"
-                style={{
-                    background: '#22d3ee',
-                    boxShadow: '0 0 10px rgba(34,211,238,.8)',
-                    animation: 'orb-bob 1.4s ease-in-out 0.36s infinite',
-                }}
-            />
+        <div className="flex items-center gap-[7px] mt-1.5">
+            {[0, 1, 2].map(i => (
+                <motion.span
+                    key={i}
+                    className="w-[7px] h-[7px] rounded-[2px] border border-line-2 bg-card-2"
+                    animate={{ y: [0, -3, 0], opacity: [0.45, 1, 0.45] }}
+                    transition={{ duration: 1.05, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                />
+            ))}
             {label && (
-                <span className="ml-2 text-xs text-neutral-400 font-display">{label}</span>
+                <span className="ml-1.5 font-mono text-[11px] text-ink-3">{label}</span>
             )}
         </div>
     );

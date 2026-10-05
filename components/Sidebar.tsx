@@ -1,118 +1,125 @@
 import React from 'react';
 import { View } from '../types';
 import { useUsage } from '../services/usageService';
+import { Icon, Kbd, ProgressBar } from './ui/primitives';
 
 interface SidebarProps {
-  currentView: View;
-  onChangeView: (view: View) => void;
-  onUpgrade: () => void;
+    currentView: View;
+    onChangeView: (view: View) => void;
+    onUpgrade: () => void;
+    onOpenPalette: () => void;
 }
 
-const UsageBadge: React.FC<{ onUpgrade: () => void }> = ({ onUpgrade }) => {
-  const usage = useUsage();
-  const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0;
-  const low = usage.remaining <= 3;
+/* Tiny index-card glyph: paper card, vermilion header rule, ruled lines. */
+const CardMark: React.FC = () => (
+    <svg width="22" height="22" viewBox="0 0 22 22" className="shrink-0" aria-hidden>
+        <rect x="1.5" y="2.5" width="19" height="17" rx="2.5" fill="var(--card)" stroke="var(--line-2)" />
+        <line x1="1.5" y1="7" x2="20.5" y2="7" stroke="var(--mark)" strokeWidth="1.4" />
+        <line x1="5" y1="11" x2="17" y2="11" stroke="var(--line-2)" strokeWidth="1" />
+        <line x1="5" y1="14.5" x2="14" y2="14.5" stroke="var(--line-2)" strokeWidth="1" />
+    </svg>
+);
 
-  return (
-    <>
-      {/* Compact bolt for collapsed sidebar */}
-      <button
-        onClick={onUpgrade}
-        className="lg:hidden w-full flex items-center justify-center py-2 mb-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-        title={`${usage.remaining} free uses left today`}
-      >
-        <span className={`material-symbols-outlined ${low ? 'text-amber-500' : 'text-[var(--theme-color)]'}`}>bolt</span>
-      </button>
+const NAV: { view: View; icon: string; label: string }[] = [
+    { view: View.LIBRARY, icon: 'note_stack', label: 'Notes' },
+    { view: View.RECORDER, icon: 'mic', label: 'Record' },
+    { view: View.ANALYSIS, icon: 'forum', label: 'Ask' },
+    { view: View.STUDY, icon: 'style', label: 'Study' },
+];
 
-      {/* Full badge for expanded sidebar (click to see details) */}
-      <button
-        onClick={onUpgrade}
-        title="View daily usage"
-        className="hidden lg:block w-full text-left rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-white/5 p-3 mb-3 hover:border-[var(--theme-color)]/40 transition-colors"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px] text-[var(--theme-color)]">bolt</span>
-            Free Usage
-          </span>
-          <span className={`text-[10px] font-black ${low ? 'text-amber-500' : 'text-slate-600 dark:text-neutral-300'}`}>
-            {usage.remaining}/{usage.limit} left
-          </span>
-        </div>
-        <div className="h-1.5 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${low ? 'bg-amber-500' : 'bg-[var(--theme-color)]'}`}
-            style={{ width: `${pct}%` }}
-          ></div>
-        </div>
-        <span className="block mt-2 text-[10px] text-neutral-500">Resets automatically</span>
-      </button>
-    </>
-  );
+/* Library filters and the note editor all live under "Notes". */
+const isActive = (nav: View, current: View): boolean =>
+    nav === current ||
+    (nav === View.LIBRARY && (current === View.BOOKMARKS || current === View.HISTORY || current === View.EDITOR));
+
+const UsageMeter: React.FC<{ onUpgrade: () => void }> = ({ onUpgrade }) => {
+    const usage = useUsage();
+    const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0;
+    const low = usage.remaining <= 3;
+    const empty = usage.remaining <= 0;
+
+    return (
+        <>
+            {/* Icon rail: just the remaining count. */}
+            <button
+                onClick={onUpgrade}
+                title={`${usage.remaining} of ${usage.limit} free uses left today`}
+                className="lg:hidden mx-auto w-9 h-9 flex items-center justify-center rounded-[var(--r)] border border-line-2 bg-card-2 hover:border-[var(--ink-3)] transition-colors"
+            >
+                <span className={`font-mono text-[11px] ${empty ? 'text-bad' : low ? 'text-warn' : 'text-ink-2'}`}>
+                    {usage.remaining}
+                </span>
+            </button>
+
+            {/* Full rail: labeled meter, opens the limit explainer. */}
+            <button
+                onClick={onUpgrade}
+                title="About the daily limit"
+                className="hidden lg:block w-full text-left rounded-[var(--r)] border border-line bg-card-2 px-3 py-2.5 mb-2 hover:border-[var(--ink-3)] transition-colors"
+            >
+                <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[10px] text-ink-3">free uses today</span>
+                    <span className={`font-mono text-[11px] ${empty ? 'text-bad' : low ? 'text-warn' : 'text-ink-2'}`}>
+                        {usage.remaining}/{usage.limit}
+                    </span>
+                </div>
+                <ProgressBar value={pct} />
+                <span className="block mt-1.5 font-mono text-[10px] text-ink-3">resets daily</span>
+            </button>
+        </>
+    );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onUpgrade }) => {
-  const navItems = [
-    { view: View.RECORDER, icon: 'mic', label: 'Active Record' },
-    { view: View.LIBRARY, icon: 'folder_open', label: 'Library' },
-    { view: View.ANALYSIS, icon: 'analytics', label: 'Global Analysis' },
-  ];
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onUpgrade, onOpenPalette }) => {
+    const navButton = (item: { view: View; icon: string; label: string }) => {
+        const active = isActive(item.view, currentView);
+        return (
+            <button
+                key={item.view}
+                onClick={() => onChangeView(item.view)}
+                title={item.label}
+                className={`w-full flex items-center justify-center lg:justify-start gap-2.5 h-9 px-0 lg:px-2.5 rounded-[var(--r)] border text-sm font-sans font-medium transition-colors duration-150
+                    ${active
+                        ? 'bg-[var(--mark-soft)] text-[var(--mark)] border-[var(--mark)]/40'
+                        : 'text-ink-2 border-transparent hover:bg-[var(--card-2)] hover:text-ink'}`}
+            >
+                <Icon name={item.icon} size={19} fill={active} />
+                <span className="hidden lg:block">{item.label}</span>
+            </button>
+        );
+    };
 
-  const savedItems = [
-    { view: View.BOOKMARKS, icon: 'bookmark', label: 'Bookmarks' },
-    { view: View.HISTORY, icon: 'history', label: 'History' },
-  ];
+    return (
+        <aside className="w-16 lg:w-60 flex flex-col border-r border-line bg-card z-20 shrink-0">
+            {/* Wordmark */}
+            <div className="h-14 flex items-center justify-center lg:justify-start lg:px-4 border-b border-line shrink-0">
+                <div className="flex items-center gap-2.5">
+                    <CardMark />
+                    <span className="font-serif text-[17px] font-semibold text-ink hidden lg:block">Modular Notes</span>
+                </div>
+            </div>
 
-  const renderButton = (item: {view: View, icon: string, label: string}) => {
-     const isActive = currentView === item.view;
-     return (
-        <button
-          key={item.view}
-          onClick={() => onChangeView(item.view)}
-          className={`flex items-center justify-center lg:justify-start gap-3 px-3 py-3 rounded-lg transition-all w-full text-left group ${
-            isActive 
-              ? 'bg-[rgba(var(--theme-rgb),0.1)] text-[var(--theme-color)] border border-[rgba(var(--theme-rgb),0.1)]' 
-              : 'text-neutral-500 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white border border-transparent'
-          }`}
-        >
-          <span className="material-symbols-outlined group-hover:scale-105 transition-transform" style={isActive ? {fontVariationSettings: "'FILL' 1"} : {}}>{item.icon}</span>
-          <span className="text-sm font-medium hidden lg:block font-body">{item.label}</span>
-        </button>
-      );
-  };
+            <nav className="flex-1 overflow-y-auto custom-scrollbar px-2 lg:px-3 py-3 flex flex-col gap-0.5">
+                {/* Search / command palette */}
+                <button
+                    onClick={onOpenPalette}
+                    title="Search and commands"
+                    className="w-full flex items-center justify-center lg:justify-start gap-2.5 h-9 px-0 lg:px-2.5 mb-3 rounded-[var(--r)] border border-line-2 bg-card-2 text-ink-3 hover:border-[var(--ink-3)] hover:text-ink-2 transition-colors duration-150"
+                >
+                    <Icon name="search" size={18} />
+                    <span className="hidden lg:block text-sm font-sans">Search</span>
+                    <span className="hidden lg:flex ml-auto items-center gap-0.5"><Kbd>⌘K</Kbd></span>
+                </button>
 
-  return (
-    <aside className="w-16 md:w-20 lg:w-72 flex flex-col border-r border-black/5 dark:border-white/10 bg-white dark:bg-[#050505] z-20 shrink-0 transition-colors">
-      <div className="h-16 md:h-20 flex items-center justify-center lg:justify-start lg:px-6 border-b border-black/5 dark:border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="size-8 rounded-full bg-[var(--theme-color)] flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(var(--theme-rgb),0.3)]">
-            <span className="material-symbols-outlined text-black text-xl font-bold">graphic_eq</span>
-          </div>
-          <span className="text-xl font-bold tracking-tight hidden lg:block text-slate-900 dark:text-white font-display">Modular AI</span>
-        </div>
-      </div>
+                {NAV.map(navButton)}
+            </nav>
 
-      <nav className="flex-1 overflow-y-auto py-6 flex flex-col gap-1 px-2 md:px-4">
-        <div className="mb-2 px-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider hidden lg:block font-display">Workspace</div>
-        {navItems.map(renderButton)}
-
-        <div className="my-4 border-t border-black/5 dark:border-white/5"></div>
-        <div className="mb-2 px-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider hidden lg:block font-display">Saved</div>
-        {savedItems.map(renderButton)}
-      </nav>
-
-      <div className="p-2 md:p-4 border-t border-black/5 dark:border-white/10 bg-neutral-50 dark:bg-[#121212]">
-        <UsageBadge onUpgrade={onUpgrade} />
-        <button
-          onClick={() => onChangeView(View.SETTINGS)}
-          className={`flex items-center justify-center lg:justify-start gap-3 px-3 py-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors w-full text-left ${currentView === View.SETTINGS ? 'bg-[rgba(var(--theme-rgb),0.1)] text-[var(--theme-color)] border border-[rgba(var(--theme-rgb),0.1)]' : 'text-neutral-500 dark:text-neutral-400 border border-transparent'}`}
-        >
-          <span className="material-symbols-outlined" style={currentView === View.SETTINGS ? {fontVariationSettings: "'FILL' 1"} : {}}>settings</span>
-          <span className="text-sm font-medium hidden lg:block font-body">Settings</span>
-        </button>
-      </div>
-    </aside>
-  );
+            <div className="border-t border-line p-2 lg:p-3">
+                <UsageMeter onUpgrade={onUpgrade} />
+                {navButton({ view: View.SETTINGS, icon: 'settings', label: 'Settings' })}
+            </div>
+        </aside>
+    );
 };
 
 export default Sidebar;
