@@ -88,7 +88,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
 
     /* ---- filtering ---- */
     const visibleNotes = useMemo(() => {
-        let result = patchedNotes;
+        let result: Note[] = patchedNotes;
         if (filterView === View.BOOKMARKS) result = result.filter(n => n.isBookmarked);
         if (query.trim()) result = searchNotes(result, query);
         if (typeFilter !== 'ALL') result = result.filter(n => n.type === typeFilter);
