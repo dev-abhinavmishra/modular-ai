@@ -7,6 +7,7 @@ interface RecorderViewProps {
     onSaveSession: (note: Note) => void;
     onCancel: () => void;
     autoGenerateTitles: boolean;
+    micDeviceId?: string;
 }
 
 const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, autoGenerateTitles }) => {

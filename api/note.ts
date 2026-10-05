@@ -46,23 +46,23 @@ export default async function handler(req: any, res: any) {
 
             <blockquote><b>Executive Summary</b>: [2-3 sentence overview of the entire content]</blockquote>
 
-            <h2>🔑 Key Concepts</h2>
+            <h2>Key concepts</h2>
             <ul>
             <li><b>[Term 1]</b> — [Brief definition or explanation]</li>
             <li><b>[Term 2]</b> — [Brief definition or explanation]</li>
             [... more as needed]
             </ul>
 
-            <h2>📝 Detailed Notes</h2>
+            <h2>Detailed notes</h2>
             [Structured paragraphs with <b>bold highlights</b> on important phrases. Use <h3> sub-headers if multiple topics exist. Be thorough but concise.]
 
-            <h2>✅ Action Items</h2>
+            <h2>Action items</h2>
             <ul>
-            <li>[ ] [Actionable task derived from the content]</li>
+            <li>[Actionable task derived from the content]</li>
             [... more as needed, or write "No action items identified." if none]
             </ul>
 
-            <h2>⚡ Quick Review</h2>
+            <h2>Quick review</h2>
             <ul>
             <li>[One-line bullet summary point 1]</li>
             <li>[One-line bullet summary point 2]</li>
@@ -71,9 +71,9 @@ export default async function handler(req: any, res: any) {
 
             RULES:
             - Do NOT just copy the raw text. Summarize and restructure it.
-            - Wrap ALL key terms, names, definitions in <b class="theme-highlight"> bold tags. Be generous.
+            - Wrap ALL key terms, names, definitions in <b> bold tags. Be generous.
             - Use strictly HTML. Do NOT use Markdown. Do NOT use inline styles.
-            - Keep the section headers exactly as shown (with the emoji).
+            - Keep the section headers exactly as shown (plain text, no emoji).
 
             Raw Text:
             ${(transcript || '').slice(0, 100000)}

@@ -5,6 +5,7 @@ interface SettingsViewProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   onClearData: () => void;
+  onNotesChanged?: () => void;
 }
 
 const THEME_COLORS = [

@@ -6,6 +6,7 @@ interface SidebarProps {
   currentView: View;
   onChangeView: (view: View) => void;
   onUpgrade: () => void;
+  onOpenPalette: () => void;
 }
 
 const UsageBadge: React.FC<{ onUpgrade: () => void }> = ({ onUpgrade }) => {
@@ -51,7 +52,8 @@ const UsageBadge: React.FC<{ onUpgrade: () => void }> = ({ onUpgrade }) => {
   );
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onUpgrade }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onUpgrade, onOpenPalette }) => {
+  void onOpenPalette;
   const navItems = [
     { view: View.RECORDER, icon: 'mic', label: 'Active Record' },
     { view: View.LIBRARY, icon: 'folder_open', label: 'Library' },

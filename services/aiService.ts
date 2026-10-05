@@ -142,6 +142,36 @@ export const generateGlobalAnalysis = async (notes: Note[], query: string, histo
     }
 };
 
+// 4.1 Inline AI actions (editor selection toolbar, study-material generation)
+export type AIAction = 'summarize' | 'expand' | 'simplify' | 'keypoints' | 'flashcards' | 'quiz';
+
+export const runAction = async (action: AIAction, text: string, context?: string): Promise<ChatResult> => {
+    try {
+        const res = await apiFetch('/api/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, text, context })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'AI action failed');
+        }
+        const data = await res.json();
+        return { content: data.content, provider: data.provider };
+    } catch (error: any) {
+        if (error instanceof LimitReachedError) return { content: LIMIT_MESSAGE };
+        return { content: error.message || 'The AI action failed. Try again.' };
+    }
+};
+
+/** Parse a JSON array the model returned (it sometimes wraps it in fences/prose). */
+export const parseJsonArray = <T = any>(raw: string): T[] => {
+    const cleaned = raw.replace(/```(?:json)?/g, '').trim();
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    try { return JSON.parse(match[0]) as T[]; } catch { return []; }
+};
+
 // 4.2 Audio Transcription (Groq Whisper)
 export const transcribeAudio = async (base64Data: string, mimeType: string, fileName: string): Promise<string> => {
     const res = await apiFetch('/api/transcribe', {

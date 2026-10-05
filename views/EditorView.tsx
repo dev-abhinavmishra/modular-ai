@@ -5,11 +5,14 @@ import Skeleton from '../components/Skeleton';
 
 interface EditorViewProps {
   note: Note;
+  notes?: Note[];
   onBack: () => void;
   onUpdate: (note: Note) => void;
   onToggleBookmark: (note: Note) => void;
+  onOpenNote?: (note: Note) => void;
   contextualAttachments: string[];
   setContextualAttachments: React.Dispatch<React.SetStateAction<string[]>>;
+  settings?: import('../types').AppSettings;
 }
 
 const EditorView: React.FC<EditorViewProps> = ({ note, onBack, onUpdate, onToggleBookmark, contextualAttachments, setContextualAttachments }) => {
