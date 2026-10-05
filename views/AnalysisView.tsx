@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { generateGlobalAnalysis, getAnalysisSessions, loadAnalysisSession, saveAnalysisSession, deleteAnalysisSession, generateTitle } from '../services/aiService';
 import { Note, ChatMessage } from '../types';
-import ThinkingOrbs from '../components/ThinkingOrbs';
+import { Btn, Icon, IconBtn, Modal } from '../components/ui/primitives';
+import QuizSetWidget from '../components/widgets/QuizSetWidget';
+import FlashcardWidget from '../components/widgets/FlashcardWidget';
+import TimelineWidget from '../components/widgets/TimelineWidget';
+import ComparisonWidget from '../components/widgets/ComparisonWidget';
+import TakeawayWidget from '../components/widgets/TakeawayWidget';
 
 interface AnalysisViewProps {
     notes: Note[];
@@ -9,119 +15,69 @@ interface AnalysisViewProps {
     setContextualAttachments?: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-const QuizSetWidget: React.FC<{ data: any }> = ({ data }) => {
-    const questions = data.questions || (Array.isArray(data) ? data : []);
-    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
-    const [showResults, setShowResults] = useState(false);
+/* Small ink squares "dealing" — the thinking indicator. */
+const ThinkingRow: React.FC<{ label?: string }> = ({ label }) => (
+    <div className="flex items-center gap-2 px-1 py-2">
+        {[0, 1, 2].map(i => (
+            <motion.span
+                key={i}
+                className="w-1.5 h-1.5 rounded-[1px] bg-[var(--ink-3)]"
+                animate={{ opacity: [0.25, 1, 0.25] }}
+                transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+            />
+        ))}
+        {label && <span className="font-mono text-[10px] text-ink-3 ml-1">{label}</span>}
+    </div>
+);
 
-    const handleSelect = (qIdx: number, oIdx: number) => {
-        if (showResults) return;
-        setSelectedAnswers(prev => ({ ...prev, [qIdx]: oIdx }));
-    };
+const StatWidget: React.FC<{ data: any }> = ({ data }) => (
+    <div className="inline-flex flex-col bg-card border border-line rounded-[var(--r-lg)] shadow-card px-5 py-4 min-w-[150px]">
+        <span className="font-mono text-[10px] text-ink-3">{data.label}</span>
+        <span className="font-serif text-3xl text-ink mt-1 leading-none">{data.value}</span>
+        {data.detail && <span className="font-mono text-[10px] text-ink-3 mt-2">{data.detail}</span>}
+    </div>
+);
 
+const ActionItemWidget: React.FC<{ data: any }> = ({ data }) => {
+    const [done, setDone] = useState(false);
     return (
-        <div className="bg-white dark:bg-zinc-900 border-t-8 border-t-[var(--theme-color)] rounded-3xl p-8 shadow-2xl max-w-2xl mx-auto overflow-hidden relative border border-black/5 dark:border-white/5">
-            <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h4 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{data.title || "Interactive Assessment"}</h4>
-                    <p className="text-xs text-slate-400 mt-2 font-medium uppercase tracking-widest italic opacity-60 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] animate-pulse"></span>
-                        {questions.length} Concepts Covered
-                    </p>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-[var(--theme-color)]/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[var(--theme-color)] text-2xl">school</span>
-                </div>
-            </div>
-            <div className="space-y-10">
-                {questions.map((q: any, qi: number) => {
-                    const isCorrect = selectedAnswers[qi] !== undefined && q.options[selectedAnswers[qi]] === q.answer;
-                    return (
-                        <div key={qi} className="group/q border-b border-black/5 dark:border-white/5 last:border-0 pb-10 last:pb-0">
-                            <div className="flex gap-4 mb-6">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-black/5 dark:bg-white/5 text-[10px] font-black text-slate-400 shrink-0">0{qi + 1}</span>
-                                <p className="text-base font-bold text-slate-800 dark:text-white leading-relaxed" dangerouslySetInnerHTML={{ __html: q.question }} />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-10">
-                                {q.options?.map((opt: string, i: number) => {
-                                    const isSelected = selectedAnswers[qi] === i;
-                                    const isOptionCorrect = opt === q.answer;
-                                    
-                                    let btnClass = "group/opt text-left px-5 py-4 rounded-2xl border transition-all outline-none active:scale-[0.98] relative overflow-hidden ";
-                                    if (showResults) {
-                                        if (isOptionCorrect) btnClass += "border-emerald-500/50 bg-emerald-500/10 dark:bg-emerald-500/5 ";
-                                        else if (isSelected && !isOptionCorrect) btnClass += "border-rose-500/50 bg-rose-500/10 dark:bg-rose-500/5 ";
-                                        else btnClass += "border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 opacity-50 ";
-                                    } else {
-                                        if (isSelected) btnClass += "border-[var(--theme-color)] bg-[var(--theme-color)]/10 ";
-                                        else btnClass += "border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 hover:border-[var(--theme-color)]/50 hover:bg-[var(--theme-color)]/5 ";
-                                    }
-
-                                    return (
-                                        <button key={i} onClick={() => handleSelect(qi, i)} className={btnClass}>
-                                            <div className="flex items-center gap-4 relative z-10">
-                                                <span className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-bold transition-colors ${isSelected ? 'bg-[var(--theme-color)] border-transparent text-black' : 'border-slate-200 dark:border-white/10 text-slate-400 group-hover/opt:border-[var(--theme-color)] group-hover/opt:text-[var(--theme-color)]'}`}>
-                                                    {String.fromCharCode(65 + i)}
-                                                </span>
-                                                <span className="text-sm text-slate-600 dark:text-neutral-300 font-medium" dangerouslySetInnerHTML={{ __html: opt }} />
-                                            </div>
-                                            {showResults && isOptionCorrect && (
-                                                <div className="absolute top-0 right-0 p-2">
-                                                    <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            <div className="mt-12 p-5 rounded-3xl bg-black/5 dark:bg-white/5 border border-dashed border-black/10 dark:border-white/10 flex items-center justify-between">
-                <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-800 dark:text-white">Ready to check?</span>
-                    <span className="text-[10px] text-slate-500 font-medium">{Object.keys(selectedAnswers).length} of {questions.length} answered</span>
-                </div>
-                <button 
-                    onClick={() => setShowResults(true)}
-                    disabled={showResults || Object.keys(selectedAnswers).length === 0}
-                    className={`px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-tighter transition-all shadow-xl ${showResults ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-[var(--theme-color)] text-black hover:scale-105 active:scale-95 shadow-[var(--theme-color)]/20'}`}
-                >
-                    {showResults ? 'Assessment Complete' : 'Submit Answers'}
-                </button>
+        <div className="flex items-center gap-3.5 max-w-lg mx-auto bg-card border border-line rounded-[var(--r-lg)] shadow-card px-4 py-3.5">
+            <button
+                onClick={() => setDone(d => !d)}
+                aria-pressed={done}
+                className={`w-5 h-5 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors duration-150
+                    ${done ? 'bg-[var(--ok)] border-transparent' : 'border-[var(--line-2)] hover:border-[var(--ink-3)]'}`}
+            >
+                {done && <Icon name="check" size={13} className="text-[var(--mark-ink)]" />}
+            </button>
+            <div className="flex-1 min-w-0">
+                <p className={`text-[13px] leading-snug ${done ? 'text-ink-3 line-through' : 'text-ink'}`} dangerouslySetInnerHTML={{ __html: data.task }} />
+                {data.assignee && <span className="font-mono text-[10px] text-ink-3 mt-1 block">{data.assignee}</span>}
             </div>
         </div>
     );
 };
 
-const FlashcardWidget: React.FC<{ data: any }> = ({ data }) => {
-    const [flipped, setFlipped] = useState(false);
-    return (
-        <div 
-            onClick={() => setFlipped(!flipped)}
-            className="group/card max-w-sm mx-auto cursor-pointer perspective-1000 h-64"
-        >
-            <div className={`relative w-full h-full transition-all duration-500 transform-style-3d ${flipped ? 'rotate-y-180' : ''}`}>
-                {/* Front */}
-                <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-900 border-t-4 border-[var(--theme-color)] rounded-3xl p-8 shadow-2xl flex flex-col justify-center border border-black/5 dark:border-white/5">
-                    <div className="absolute top-0 right-0 p-3 bg-[var(--theme-color)]/10 rounded-bl-2xl text-[10px] font-bold text-[var(--theme-color)] uppercase tracking-tighter">Front</div>
-                    <h4 className="text-[10px] uppercase tracking-widest text-slate-400 mb-4 font-black">Concept</h4>
-                    <p className="text-xl font-black text-slate-800 dark:text-white leading-tight" dangerouslySetInnerHTML={{ __html: data.front }} />
-                    <div className="mt-auto flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic opacity-50">
-                        <span className="animate-bounce material-symbols-outlined text-sm">touch_app</span>
-                        Click to Reveal
-                    </div>
-                </div>
-                {/* Back */}
-                <div className="absolute inset-0 backface-hidden bg-zinc-900 border-t-4 border-sky-400 rounded-3xl p-8 shadow-2xl flex flex-col justify-center rotate-y-180 border border-white/5">
-                    <div className="absolute top-0 right-0 p-3 bg-sky-400/10 rounded-bl-2xl text-[10px] font-bold text-sky-400 uppercase tracking-tighter">Answer</div>
-                    <h4 className="text-[10px] uppercase tracking-widest text-slate-400 mb-4 font-black">Definition</h4>
-                    <p className="text-lg font-bold text-neutral-300 leading-relaxed italic" dangerouslySetInnerHTML={{ __html: data.back }} />
-                </div>
-            </div>
-        </div>
-    );
+const renderWidget = (type: string, data: any) => {
+    switch (type.toUpperCase()) {
+        case 'QUIZ_SET':
+        case 'QUIZ':
+            return <QuizSetWidget data={data} />;
+        case 'FLASHCARD':
+            return <FlashcardWidget data={data} />;
+        case 'TIMELINE':
+            return <TimelineWidget data={data} />;
+        case 'COMPARISON':
+            return <ComparisonWidget data={data} />;
+        case 'TAKEAWAY':
+            return <TakeawayWidget data={data} />;
+        case 'STAT':
+            return <StatWidget data={data} />;
+        case 'ACTION_ITEM':
+            return <ActionItemWidget data={data} />;
+        default:
+            return null;
+    }
 };
 
 const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachments = [], setContextualAttachments }) => {
@@ -131,12 +87,15 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
     const [sessions, setSessions] = useState<any[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Initial load: fetch sessions and set initial message
     useEffect(() => {
         fetchSessions();
         handleNewSession();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchSessions = async () => {
@@ -156,7 +115,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
             {
                 id: 'init',
                 role: 'model',
-                text: "Hello! I've indexed all your notes. Ask me anything about your knowledge base or start a new analysis.",
+                text: "Ask about anything across your notes — I can quiz you, build timelines, compare ideas, or pull out takeaways.",
                 timestamp: new Date()
             }
         ]);
@@ -180,9 +139,10 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         }
     };
 
-    const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (!confirm("Are you sure you want to delete this session?")) return;
+    const confirmDeleteSession = async () => {
+        const id = sessionToDelete;
+        setSessionToDelete(null);
+        if (!id) return;
         try {
             await deleteAnalysisSession(id);
             if (currentSessionId === id) handleNewSession();
@@ -192,19 +152,26 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         }
     };
 
-    // Auto-scroll logic
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, loading]);
 
+    // Auto-grow the input as the query wraps
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    }, [query]);
+
     const handleSend = async (overrideQuery?: string) => {
         const baseQuery = typeof overrideQuery === 'string' ? overrideQuery : query;
         if (!baseQuery.trim() && contextualAttachments.length === 0) return;
 
         let finalQuery = baseQuery;
-        let originalQuery = baseQuery;
+        const originalQuery = baseQuery;
 
         if (contextualAttachments.length > 0) {
             const attachmentsBlock = contextualAttachments.map(text => `> ${text}`).join('\n>\n');
@@ -215,7 +182,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setQuery("");
-        
+
         if (setContextualAttachments) {
             setContextualAttachments([]);
         }
@@ -233,18 +200,17 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
             const finalMessages = [...newMessages, aiMsg];
             setMessages(finalMessages);
 
-            // Auto-save session
             let title = currentSessionId ? sessions.find(s => s.id === currentSessionId)?.title : null;
             if (!title) {
-                title = await generateTitle(originalQuery || "Analysis Session");
+                title = await generateTitle(originalQuery || "Ask session");
             }
 
             const saved = await saveAnalysisSession({
                 id: currentSessionId || undefined,
-                title: title,
+                title,
                 messages: finalMessages
             });
-            
+
             if (!currentSessionId) setCurrentSessionId(saved.id);
             fetchSessions();
         } catch (err) {
@@ -254,54 +220,45 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         }
     };
 
+    const handleCopy = (text: string, id: string) => {
+        navigator.clipboard?.writeText(text).then(() => {
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 1500);
+        }).catch(() => {});
+    };
+
     const renderMessageContent = (text: string) => {
         const widgets: React.ReactNode[] = [];
         let cleanText = text;
 
-        // --- NEW RESILIENT SCANNER SYSTEM ---
-        
-        /**
-         * Stage 1: Delimiter Scan (---WIDGET_START:TYPE---)
-         * This is the primary intended format.
-         */
+        // Stage 1: ---WIDGET_START:TYPE--- ... ---WIDGET_END---
         const delimiterRegex = /---WIDGET_START:(\w+)---([\s\S]*?)(?:---WIDGET_END---|$)/g;
         let delimiterMatch;
         while ((delimiterMatch = delimiterRegex.exec(text)) !== null) {
-            const type = delimiterMatch[1];
-            const content = delimiterMatch[2].trim();
-            processWidgetData(type, content);
+            processWidgetData(delimiterMatch[1], delimiterMatch[2].trim());
         }
 
-        /**
-         * Stage 2: Legacy/Malform Scan (<<<TYPE:JSON>>>)
-         * Handles the previous format if the AI still uses it.
-         */
+        // Stage 2: legacy <<<TYPE:JSON>>> shape
         const legacyRegex = /<{1,3}(\w+):?\s*([\s\S]*?)>{1,3}/g;
         let legacyMatch;
         while ((legacyMatch = legacyRegex.exec(text)) !== null) {
             const type = legacyMatch[1];
             const content = legacyMatch[2].trim();
-            // Ignore if we already processed this as a delimiter (basic deduplication)
             if (!text.includes(`---WIDGET_START:${type}---`)) {
                 processWidgetData(type, content);
             }
         }
 
-        /**
-         * Stage 3: Syntax-Blind Discovery
-         * If the AI just returns a raw JSON structure with no tags.
-         */
+        // Stage 3: bare JSON blocks
         if (widgets.length === 0) {
-            // Find potential JSON blocks (starts with { or [ and ends with } or ])
             const potentialJsonRegex = /(\[[\s\S]*\]|\{[\s\S]*\})/g;
             let jsonMatch;
             while ((jsonMatch = potentialJsonRegex.exec(text)) !== null) {
                 const rawJson = jsonMatch[1].trim();
-                // Heuristic: Does it look like a widget?
                 if (rawJson.includes('"question":') || rawJson.includes('"front":') || rawJson.includes('"date":') || rawJson.includes('"left":')) {
-                    const type = rawJson.includes('"question":') ? 'QUIZ_SET' : 
-                                 rawJson.includes('"front":') ? 'FLASHCARD' : 
-                                 rawJson.includes('"top":') ? 'TAKEAWAY' : 
+                    const type = rawJson.includes('"question":') ? 'QUIZ_SET' :
+                                 rawJson.includes('"front":') ? 'FLASHCARD' :
+                                 rawJson.includes('"top":') ? 'TAKEAWAY' :
                                  rawJson.includes('"left":') ? 'COMPARISON' : 'UNKNOWN';
                     processWidgetData(type, rawJson);
                 }
@@ -310,176 +267,61 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
         function processWidgetData(type: string, rawContent: string) {
             try {
-                // JSON Repair: Fix common LLM syntax errors
                 let fixed = rawContent.trim();
                 if (fixed.endsWith(',')) fixed = fixed.slice(0, -1);
                 if (fixed.startsWith('<<')) fixed = fixed.replace(/^<<+/, '');
                 if (fixed.endsWith('>>')) fixed = fixed.replace(/>>+$/, '');
-                
-                // If it's a quiz that's just an array, wrap it
                 if (type === 'QUIZ_SET' && fixed.startsWith('[') && !fixed.includes('"questions":')) {
                     fixed = `{"questions": ${fixed}}`;
                 }
 
                 const data = JSON.parse(fixed);
                 const widgetKey = `${type}-${widgets.length}`;
-                
-                widgets.push(
-                    <div key={widgetKey} className="my-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        {renderWidget(type, data)}
-                    </div>
-                );
-                
-                // Remove from clean text to keep the view tidy
+
+                const el = renderWidget(type, data);
+                if (el) {
+                    widgets.push(
+                        <div key={widgetKey} className="my-5 rise">
+                            {el}
+                        </div>
+                    );
+                }
+
                 cleanText = cleanText.replace(rawContent, "");
-                // Also remove the delimiters if they exist in the text being replaced
             } catch (e) {
-                console.error("Widget Parse Failure:", type, e);
+                console.error("Widget parse failure:", type, e);
             }
         }
 
-        // Standardize the replacement to remove tags
         cleanText = cleanText.replace(/---WIDGET_START:(\w+)---/g, "")
                             .replace(/---WIDGET_END---/g, "")
                             .replace(/<{1,3}(\w+):?/g, "")
                             .replace(/>{1,3}/g, "");
 
-        function renderWidget(type: string, data: any) {
-            switch (type.toUpperCase()) {
-                case 'QUIZ_SET':
-                case 'QUIZ':
-                    return <QuizSetWidget data={data} />;
-
-                case 'FLASHCARD':
-                    return <FlashcardWidget data={data} />;
-
-                case 'TIMELINE':
-                    return (
-                        <div className="flex gap-4 items-start max-w-xl mx-auto bg-white dark:bg-zinc-900/40 p-6 rounded-3xl border border-black/5 dark:border-white/5 shadow-lg group">
-                            <div className="flex flex-col items-center gap-1 mt-1 shrink-0">
-                                <div className="w-4 h-4 rounded-full bg-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color)] group-hover:scale-125 transition-transform"></div>
-                                <div className="w-[2px] h-16 bg-gradient-to-b from-[var(--theme-color)] to-transparent opacity-30"></div>
-                            </div>
-                            <div className="flex-1">
-                                <span className="px-2 py-0.5 rounded-md bg-[var(--theme-color)]/10 text-[10px] font-black uppercase text-[var(--theme-color)] tracking-tighter border border-[var(--theme-color)]/20">{data.date}</span>
-                                <p className="text-[13px] text-slate-700 dark:text-neutral-300 font-semibold mt-3 leading-relaxed" dangerouslySetInnerHTML={{ __html: data.description }} />
-                            </div>
-                        </div>
-                    );
-
-                case 'COMPARISON':
-                    return (
-                        <div className="bg-white dark:bg-zinc-900/50 border-t-8 border-[var(--theme-color)] rounded-3xl overflow-hidden shadow-2xl max-w-2xl mx-auto border-x border-b border-black/5 dark:border-white/5">
-                            <div className="bg-slate-50 dark:bg-white/5 px-6 py-5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
-                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-neutral-400">{data.title || "Side-by-Side Comparison"}</h4>
-                                <span className="material-symbols-outlined text-[var(--theme-color)] text-xl">compare_arrows</span>
-                            </div>
-                            <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-white/10">
-                                <div className="p-8">
-                                    <h5 className="text-sm font-bold text-[var(--theme-color)] mb-6 flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-[var(--theme-color)] animate-pulse"></span>
-                                        {data.left?.name || "Topic A"}
-                                    </h5>
-                                    <ul className="space-y-4">
-                                        {data.left?.points?.map((p: string, i: number) => (
-                                            <li key={i} className="text-[11px] text-slate-600 dark:text-neutral-400 flex gap-3 leading-relaxed">
-                                                <span className="text-[var(--theme-color)] shrink-0 opacity-50">✦</span>
-                                                <span dangerouslySetInnerHTML={{ __html: p }} />
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                                <div className="p-8">
-                                    <h5 className="text-sm font-bold text-sky-400 mb-6 flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
-                                        {data.right?.name || "Topic B"}
-                                    </h5>
-                                    <ul className="space-y-4">
-                                        {data.right?.points?.map((p: string, i: number) => (
-                                            <li key={i} className="text-[11px] text-slate-600 dark:text-neutral-400 flex gap-3 leading-relaxed">
-                                                <span className="text-sky-400 shrink-0 opacity-50">✦</span>
-                                                <span dangerouslySetInnerHTML={{ __html: p }} />
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    );
-
-                case 'STAT':
-                    return (
-                        <div className="inline-flex flex-col bg-[var(--theme-color)] text-black p-6 rounded-3xl shadow-2xl shadow-[var(--theme-color)]/30 min-w-[180px] relative overflow-hidden group">
-                            <div className="absolute -right-8 -top-8 w-24 h-24 bg-white/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
-                            <span className="text-[10px] uppercase font-black tracking-widest opacity-60 z-10">{data.label}</span>
-                            <span className="text-5xl font-black my-2 tracking-tighter z-10">{data.value}</span>
-                            {data.detail && <span className="text-[10px] font-black opacity-80 tracking-tight z-10 bg-black/5 px-2 py-0.5 rounded-md self-start">{data.detail}</span>}
-                        </div>
-                    );
-
-                case 'ACTION_ITEM':
-                    return (
-                        <div className="flex items-center gap-5 bg-white dark:bg-white/5 p-5 rounded-3xl border border-black/5 dark:border-white/10 shadow-lg hover:border-[var(--theme-color)]/50 transition-all group max-w-lg mx-auto">
-                            <button className="w-8 h-8 rounded-xl border-2 border-[var(--theme-color)]/50 flex items-center justify-center group-hover:bg-[var(--theme-color)] group-hover:border-transparent transition-all shadow-md active:scale-90">
-                                <span className="material-symbols-outlined text-[18px] text-[var(--theme-color)] group-hover:text-black opacity-0 group-hover:opacity-100 transition-all font-black">check</span>
-                            </button>
-                            <div className="flex-1">
-                                <p className="text-[14px] text-slate-700 dark:text-neutral-200 font-bold leading-tight" dangerouslySetInnerHTML={{ __html: data.task }} />
-                                {data.assignee && <span className="text-[10px] text-[var(--theme-color)] uppercase font-black tracking-widest mt-2 block opacity-70 border-t border-black/5 pt-1 w-fit">Assignee: {data.assignee}</span>}
-                            </div>
-                        </div>
-                    );
-
-                case 'TAKEAWAY':
-                    return (
-                        <div className="p-6 rounded-3xl bg-gradient-to-br from-white to-slate-50 dark:from-white/5 dark:to-transparent border border-black/5 dark:border-white/5 shadow-xl group max-w-xl mx-auto">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 rounded-2xl bg-[var(--theme-color)]/10 flex items-center justify-center group-hover:rotate-12 transition-transform">
-                                    <span className="material-symbols-outlined text-[var(--theme-color)] text-2xl">lightbulb</span>
-                                </div>
-                                <h4 className="text-[13px] font-black uppercase tracking-tight text-slate-800 dark:text-white leading-none">{data.title}</h4>
-                            </div>
-                            <p className="text-[13px] text-slate-600 dark:text-neutral-400 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: data.description }} />
-                        </div>
-                    );
-
-                default:
-                    return null;
-            }
-        }
-
-        // Robust Ad-hoc Markdown Rendering
         const htmlContent = cleanText
-            // Tables (Basic support for | Col | Col | format)
             .replace(/\|(.+)\|/gim, (match) => {
                 const cols = match.split('|').filter(c => c.trim().length > 0);
                 if (cols.length === 0) return match;
-                return `<div class="overflow-x-auto my-4"><table class="min-w-full divide-y divide-black/5 dark:divide-white/10 border border-black/5 dark:border-white/10 rounded-xl overflow-hidden text-[11px]">
-                    <tr class="bg-black/5 dark:bg-white/5">
-                        ${cols.map(c => `<th class="px-3 py-2 text-left font-bold text-slate-800 dark:text-white uppercase tracking-tighter">${c.trim()}</th>`).join('')}
+                return `<div class="overflow-x-auto my-4"><table class="min-w-full border border-[var(--line)] rounded-[var(--r)] overflow-hidden text-[12px]">
+                    <tr class="bg-[var(--card-2)]">
+                        ${cols.map(c => `<th class="px-3 py-2 text-left font-semibold text-ink border-b border-[var(--line)]">${c.trim()}</th>`).join('')}
                     </tr>
                 </table></div>`;
             })
-            // Headers
-            .replace(/^#{3} (.*$)/gim, '<h3 class="text-lg font-bold text-slate-800 dark:text-white mt-6 mb-2">$1</h3>')
-            .replace(/^#{2} (.*$)/gim, '<h2 class="text-xl font-bold text-slate-800 dark:text-white mt-8 mb-4 border-b border-black/5 pb-2">$1</h2>')
-            .replace(/^#{1} (.*$)/gim, '<h1 class="text-2xl font-bold text-slate-900 dark:text-white mt-10 mb-6">$1</h1>')
-            // Bold
-            .replace(/\*\*(.*?)\*\*/g, '<b class="font-bold text-slate-900 dark:text-white">$1</b>')
-            // Italics
-            .replace(/\*(.*?)\*/g, '<i class="italic opacity-80">$1</i>')
-            // Blockquotes
-            .replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-[var(--theme-color)]/40 bg-black/5 dark:bg-white/5 px-4 py-2 my-4 rounded-r-lg italic text-slate-600 dark:text-neutral-400">$1</blockquote>')
-            // Lists (Simple)
-            .replace(/^\s*[-*] (.*$)/gim, '<li class="ml-4 list-disc text-slate-600 dark:text-neutral-400 mb-1">$1</li>')
-            // Paragraphs and breaks
+            .replace(/^#{3} (.*$)/gim, '<h3 class="font-serif text-base font-semibold text-ink mt-5 mb-1.5">$1</h3>')
+            .replace(/^#{2} (.*$)/gim, '<h2 class="font-serif text-lg font-semibold text-ink mt-6 mb-2 border-b border-[var(--line)] pb-1.5">$1</h2>')
+            .replace(/^#{1} (.*$)/gim, '<h1 class="font-serif text-xl font-semibold text-ink mt-7 mb-3">$1</h1>')
+            .replace(/\*\*(.*?)\*\*/g, '<b class="font-semibold text-ink">$1</b>')
+            .replace(/\*(.*?)\*/g, '<i class="italic text-ink-2">$1</i>')
+            .replace(/^> (.*$)/gim, '<blockquote class="border-l-2 border-[var(--mark)]/50 bg-[var(--card-2)] px-3 py-1.5 my-3 rounded-r-[var(--r)] italic text-ink-2">$1</blockquote>')
+            .replace(/^\s*[-*] (.*$)/gim, '<li class="ml-4 list-disc text-ink-2 mb-1">$1</li>')
             .replace(/\n/g, '<br/>');
 
         return (
             <div className="space-y-2">
-                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+                <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
                 {widgets.length > 0 && (
-                    <div className="mt-6 pt-6 border-t border-black/5 dark:border-white/5 space-y-4">
+                    <div className="mt-5 pt-4 border-t border-line space-y-2">
                         {widgets}
                     </div>
                 )}
@@ -488,45 +330,44 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
     };
 
     const suggestions = [
-        { label: 'Generate Quiz', icon: 'quiz', query: 'Generate a comprehensive quiz set based on my notes.' },
-        { label: 'Show Timeline', icon: 'event_repeat', query: 'Show a timeline of key events and dates mentioned in my library.' },
-        { label: 'Compare Concepts', icon: 'compare_arrows', query: 'Compare the primary concepts discussed in my recent notes.' },
-        { label: 'Key Takeaways', icon: 'lightbulb', query: 'Summarize the most important takeaways from all my notes.' }
+        { label: 'Make a quiz', icon: 'quiz', query: 'Generate a comprehensive quiz set based on my notes.' },
+        { label: 'Timeline', icon: 'event_repeat', query: 'Show a timeline of key events and dates mentioned in my library.' },
+        { label: 'Compare concepts', icon: 'compare_arrows', query: 'Compare the primary concepts discussed in my recent notes.' },
+        { label: 'Key takeaways', icon: 'edit_note', query: 'Summarize the most important takeaways from all my notes.' }
     ];
 
-    // Derive currentSession for rendering purposes
-    const currentSession = currentSessionId 
-        ? sessions.find(s => s.id === currentSessionId) 
-        : { id: 'new', title: 'New Session', messages: messages, updated_at: new Date().toISOString() };
-
-
     return (
-        <div className="flex h-full overflow-hidden bg-[#f4f4f5] dark:bg-[#09090b] flex-1">
-            {/* Sessions Sidebar */}
-            <div className={`border-r border-black/5 dark:border-white/5 bg-white/30 dark:bg-white/[0.02] backdrop-blur-xl transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-64' : 'w-0 opacity-0 lg:w-0'}`}>
-                <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between shrink-0 h-14">
-                    <h2 className="font-bold text-[10px] uppercase tracking-wider text-slate-500">Analysis History</h2>
-                    <button onClick={handleNewSession} className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg text-[var(--theme-color)] transition-colors" title="New Session">
-                        <span className="material-symbols-outlined text-base font-bold">add</span>
-                    </button>
+        <div className="flex h-full overflow-hidden bg-paper flex-1">
+            {/* Sessions sidebar */}
+            <div className={`border-r border-line bg-card transition-all duration-200 flex flex-col shrink-0 ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden'}`}>
+                <div className="h-12 px-3 border-b border-line flex items-center justify-between shrink-0">
+                    <h2 className="text-[13px] font-medium text-ink">Sessions</h2>
+                    <IconBtn icon="add" title="New session" onClick={handleNewSession} />
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                    {sessions.length === 0 && (
+                        <p className="text-xs text-ink-3 px-2 py-6">Past conversations will list here.</p>
+                    )}
                     {sessions.map(s => (
-                        <div 
-                            key={s.id} 
+                        <div
+                            key={s.id}
                             onClick={() => handleLoadSession(s.id)}
-                            className={`group p-3 rounded-xl cursor-pointer transition-all border ${currentSessionId === s.id 
-                                ? 'bg-[var(--theme-color)]/10 border-[var(--theme-color)]/30' 
-                                : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
+                            className={`group px-3 py-2.5 rounded-[var(--r)] cursor-pointer border transition-colors duration-150 ${currentSessionId === s.id
+                                ? 'bg-[var(--mark-soft)] border-[var(--mark)]/30'
+                                : 'border-transparent hover:bg-[var(--card-2)]'}`}
                         >
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    <h3 className={`text-xs font-semibold truncate ${currentSessionId === s.id ? 'text-[var(--theme-color)]' : 'text-slate-700 dark:text-neutral-200'}`}>{s.title}</h3>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(s.updated_at).toLocaleDateString()}</p>
+                                    <h3 className={`text-[13px] font-medium truncate ${currentSessionId === s.id ? 'text-mark' : 'text-ink'}`}>{s.title}</h3>
+                                    <p className="font-mono text-[10px] text-ink-3 mt-0.5">{new Date(s.updated_at).toLocaleDateString()}</p>
                                 </div>
-                                <button onClick={(e) => handleDeleteSession(e, s.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all">
-                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSessionToDelete(s.id); }}
+                                    className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-bad transition-opacity shrink-0"
+                                    title="Delete session"
+                                >
+                                    <Icon name="delete" size={15} />
                                 </button>
                             </div>
                         </div>
@@ -534,115 +375,127 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col min-w-0 relative h-full">
-                {/* Header */}
-                <div className="h-14 border-b border-black/5 dark:border-white/10 flex items-center px-6 bg-white/50 dark:bg-black/50 backdrop-blur-md shrink-0 justify-between">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors text-slate-500">
-                            <span className="material-symbols-outlined font-light">{sidebarOpen ? 'menu_open' : 'menu'}</span>
-                        </button>
-                        <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block"></div>
-                        <div className="flex flex-col">
-                            <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Global Analysis</h1>
-                            <p className="text-[10px] text-slate-400 font-medium">Synced with Supabase</p>
-                        </div>
-                    </div>
-                </div>
+            {/* Main column */}
+            <div className="flex-1 flex flex-col min-w-0 h-full">
+                <header className="h-14 border-b border-line flex items-center px-3 md:px-5 shrink-0 gap-2">
+                    <IconBtn icon={sidebarOpen ? 'menu_open' : 'menu'} title="Toggle sessions" onClick={() => setSidebarOpen(o => !o)} />
+                    <div className="h-4 w-px bg-[var(--line-2)] hidden md:block" />
+                    <h1 className="font-serif text-xl text-ink">Ask</h1>
+                    <span className="font-mono text-[10px] text-ink-3 ml-1">{notes.length} notes in context</span>
+                </header>
 
-                {/* Messages Area */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 space-y-6 custom-scrollbar">
+                {/* Messages */}
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5 custom-scrollbar">
                     {messages.map((msg, idx) => (
-                        <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${msg.role === 'model'
-                                    ? 'bg-white dark:bg-white/10 border-black/5 dark:border-white/10'
-                                    : 'bg-[var(--theme-color)] border-transparent'
-                                }`}>
-                                {msg.role === 'model' ?
-                                    <span className="material-symbols-outlined text-base text-[var(--theme-color)]">analytics</span> :
-                                    <span className="text-black text-xs font-bold">You</span>
-                                }
-                            </div>
-                            <div className={`flex flex-col gap-1.5 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div key={msg.id || idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                            {msg.role === 'model' ? (
+                                <div className="w-7 h-7 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 shadow-card mt-0.5">
+                                    <Icon name="chat" size={14} className="text-ink-3" />
+                                </div>
+                            ) : <div className="w-7 shrink-0" />}
+                            <div className={`flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                                 <div
-                                    className={`p-4 rounded-2xl text-[13px] leading-relaxed shadow-sm ${msg.role === 'model'
-                                            ? 'bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 text-slate-700 dark:text-neutral-300'
-                                            : 'bg-[var(--theme-color)] text-black font-medium'
-                                        } ${msg.role === 'model' ? 'rounded-tl-none' : 'rounded-tr-none'}`}
+                                    className={`px-4 py-3 rounded-[var(--r-lg)] text-[13px] leading-relaxed ${msg.role === 'model'
+                                        ? 'bg-card border border-line text-ink shadow-card'
+                                        : 'bg-[var(--mark-soft)] border border-[var(--mark)]/25 text-ink'}`}
                                 >
                                     {renderMessageContent(msg.text)}
                                 </div>
+                                {msg.role === 'model' && msg.id !== 'init' && (
+                                    <div className="flex items-center gap-3 px-1">
+                                        {msg.provider && (
+                                            <span className="font-mono text-[10px] text-ink-3">via {msg.provider}</span>
+                                        )}
+                                        <button
+                                            onClick={() => handleCopy(msg.text, msg.id)}
+                                            className="font-mono text-[10px] text-ink-3 hover:text-mark flex items-center gap-1 transition-colors"
+                                        >
+                                            <Icon name={copiedId === msg.id ? 'check' : 'content_copy'} size={11} />
+                                            {copiedId === msg.id ? 'copied' : 'copy'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
 
                     {loading && (
-                        <div className="flex gap-4">
-                            <div className="w-8 h-8 rounded-xl bg-white dark:bg-white/10 border border-black/5 dark:border-white/10 flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base text-[var(--theme-color)] animate-pulse">analytics</span>
+                        <div className="flex gap-3">
+                            <div className="w-7 h-7 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 shadow-card mt-0.5">
+                                <Icon name="chat" size={14} className="text-ink-3" />
                             </div>
-                            <ThinkingOrbs label="thinking…" />
+                            <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-4">
+                                <ThinkingRow label="reading your notes" />
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Input Area */}
-                <div className="p-6 border-t border-black/5 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-xl shrink-0">
-                    <div className="max-w-4xl mx-auto flex flex-col gap-6">
-                    {/* Suggestions Row */}
-                    {messages.length <= 1 && (
-                        <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2 duration-700">
-                            {suggestions.map((s, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => handleSend(s.query)}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/5 hover:border-[var(--theme-color)]/50 hover:bg-[var(--theme-color)]/5 transition-all group shadow-sm active:scale-95"
-                                >
-                                    <span className="material-symbols-outlined text-slate-400 group-hover:text-[var(--theme-color)] text-lg transition-colors">{s.icon}</span>
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{s.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                {/* Input */}
+                <div className="border-t border-line px-4 md:px-8 py-4 shrink-0">
+                    <div className="max-w-3xl mx-auto flex flex-col gap-3">
+                        {messages.length <= 1 && (
+                            <div className="flex flex-wrap gap-2">
+                                {suggestions.map((s, i) => (
+                                    <Btn key={i} size="sm" icon={s.icon} onClick={() => handleSend(s.query)}>
+                                        {s.label}
+                                    </Btn>
+                                ))}
+                            </div>
+                        )}
 
-                        {/* Attachments */}
-                        {contextualAttachments && contextualAttachments.length > 0 && (
-                            <div className="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                        {contextualAttachments.length > 0 && (
+                            <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                                 {contextualAttachments.map((text, idx) => (
-                                    <div key={idx} className="bg-white dark:bg-white/5 border-l-2 border-[var(--theme-color)] rounded-r-lg px-4 py-2.5 flex items-start gap-3 shadow-sm group/att transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                                        <span className="material-symbols-outlined text-[16px] text-[var(--theme-color)] mt-0.5 shrink-0">format_quote</span>
-                                        <p className="text-xs text-slate-600 dark:text-neutral-300 flex-1 line-clamp-2 leading-relaxed italic" title={text}>"{text}"</p>
-                                        <button 
+                                    <div key={idx} className="bg-[var(--tape)] border-l-2 border-[var(--mark)] rounded-r-[var(--r)] px-3 py-2 flex items-start gap-2.5 group/att">
+                                        <Icon name="format_quote" size={14} className="text-mark mt-0.5 shrink-0" />
+                                        <p className="text-xs text-ink-2 flex-1 line-clamp-2 leading-relaxed italic" title={text}>"{text}"</p>
+                                        <button
                                             onClick={() => setContextualAttachments && setContextualAttachments(prev => prev.filter((_, i) => i !== idx))}
-                                            className="shrink-0 opacity-0 group-hover/att:opacity-100 hover:bg-red-500/10 text-red-500 rounded-full p-1 transition-all"
+                                            className="shrink-0 text-ink-3 hover:text-bad transition-colors"
+                                            title="Remove"
                                         >
-                                            <span className="material-symbols-outlined text-[14px]">close</span>
+                                            <Icon name="close" size={13} />
                                         </button>
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        <div className="relative group shadow-2xl rounded-2xl">
-                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--theme-color)]/20 to-[var(--theme-color)]/5 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
-                            <input
-                                className="w-full bg-white dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-2xl pl-6 pr-14 py-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50 transition-all shadow-inner relative z-10"
-                                placeholder="Search across all notes..."
+                        <div className="flex items-end gap-2">
+                            <textarea
+                                ref={inputRef}
+                                rows={1}
+                                className="flex-1 bg-card-2 border border-line-2 rounded-[var(--r)] px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:outline-none focus:border-[var(--mark)] resize-none custom-scrollbar transition-colors"
+                                placeholder="Ask across your notes…"
                                 value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                onChange={e => setQuery(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSend();
+                                    }
+                                }}
                             />
-                            <button
-                                onClick={() => handleSend()}
-                                disabled={loading}
-                                className="absolute right-3 top-2 bottom-2 px-4 bg-[var(--theme-color)] rounded-xl text-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[var(--theme-color)]/20 disabled:opacity-50 z-20"
-                            >
-                                <span className="material-symbols-outlined text-xl font-bold">arrow_upward</span>
-                            </button>
+                            <Btn variant="primary" onClick={() => handleSend()} disabled={loading || (!query.trim() && contextualAttachments.length === 0)} icon="arrow_upward">
+                                Ask
+                            </Btn>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Delete session confirm */}
+            <Modal open={sessionToDelete !== null} onClose={() => setSessionToDelete(null)}>
+                <div className="p-5">
+                    <h3 className="font-serif text-lg text-ink">Delete this session?</h3>
+                    <p className="text-sm text-ink-2 mt-2">The conversation will be removed permanently.</p>
+                    <div className="flex justify-end gap-2 mt-5">
+                        <Btn onClick={() => setSessionToDelete(null)}>Cancel</Btn>
+                        <Btn variant="danger" onClick={confirmDeleteSession}>Delete</Btn>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };
