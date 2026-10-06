@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { enforceLimit } from './_usage';
+import { checkLimit, recordUsage } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -36,7 +36,7 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'Missing text' });
         }
 
-        const usage = await enforceLimit(req, res);
+        const usage = await checkLimit(req, res);
         if (!usage) return; // 429 already sent
 
         const source = (context ? `Context:\n${context.slice(0, 30000)}\n\nSelection:\n${text.slice(0, 20000)}` : text.slice(0, 50000));
@@ -45,6 +45,7 @@ export default async function handler(req: any, res: any) {
             { maxTokens: 2500, temperature: 0.4 }
         );
 
+        await recordUsage(req, res);
         res.setHeader('x-ai-provider', provider);
         return res.status(200).json({ content: content.trim(), provider });
     } catch (error: any) {

@@ -89,8 +89,16 @@ export const deleteNote = async (id: string): Promise<void> => {
     deleteNoteFromCloud(id);
 };
 
+const NOTE_TYPES = new Set(['AUDIO', 'PDF', 'VIDEO', 'TEXT', 'IMAGE']);
+
+/* A record that can't satisfy the Note shape is dropped here rather than
+   crashing every consumer downstream (a single bad row used to brick the app). */
+const isNoteRecord = (n: any): n is Note =>
+    !!n && typeof n.id === 'string' && typeof n.content === 'string' && NOTE_TYPES.has(n.type);
+
 export const getAllNotes = async (): Promise<Note[]> => {
-    const localNotes = await tx(NOTES_STORE, 'readonly', s => s.getAll() as IDBRequest<Note[]>);
+    const rawNotes = await tx(NOTES_STORE, 'readonly', s => s.getAll() as IDBRequest<Note[]>);
+    const localNotes = (rawNotes || []).filter(isNoteRecord);
 
     // If local is empty, try to fetch from cloud (one-time sync)
     if (localNotes.length === 0) {
@@ -105,7 +113,7 @@ export const getAllNotes = async (): Promise<Note[]> => {
                         isBookmarked: n.is_bookmarked,
                         lastAccessed: n.last_accessed,
                         sourceData: n.source_data
-                    }));
+                    })).filter(isNoteRecord);
 
                     for (const note of mappedNotes) {
                         await tx(NOTES_STORE, 'readwrite', s => s.put(note));
@@ -152,6 +160,7 @@ export const deleteNotesBefore = async (date: Date): Promise<number> => {
         const lastAccessed = note.lastAccessed ? new Date(note.lastAccessed) : new Date(0);
         if (lastAccessed < date) {
             await tx(NOTES_STORE, 'readwrite', s => s.delete(note.id));
+            await deleteNoteVersions(note.id).catch(() => {});
             deleted++;
         }
     }

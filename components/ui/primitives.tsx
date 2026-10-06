@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* "Index" primitives — the only sanctioned building blocks.
@@ -170,7 +170,23 @@ export const Modal: React.FC<{
     onClose: () => void;
     children: React.ReactNode;
     width?: string;
-}> = ({ open, onClose, children, width = 'max-w-md' }) => (
+}> = ({ open, onClose, children, width = 'max-w-md' }) => {
+    /* Escape dismisses the modal. Capture phase so a view-level Escape
+       handler (e.g. the editor's) doesn't also fire for the same press. */
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [open, onClose]);
+
+    return (
     <AnimatePresence>
         {open && (
             <motion.div
@@ -192,7 +208,8 @@ export const Modal: React.FC<{
             </motion.div>
         )}
     </AnimatePresence>
-);
+    );
+};
 
 /* ---- Feedback ---- */
 export const EmptyState: React.FC<{

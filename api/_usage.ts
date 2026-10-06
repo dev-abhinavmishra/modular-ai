@@ -209,29 +209,47 @@ export const getUsageFor = async (userId: string, authed: boolean): Promise<Usag
     return anonGetUsage(userId);
 };
 
-/**
- * Enforce the limit at the top of a handler. Sends usage headers always, and a
- * 429 (returning null) when the caller is over their limit.
- */
-export const enforceLimit = async (req: any, res: any): Promise<UsageStatus | null> => {
-    const { userId, authed } = await resolveUser(req);
-    const sb = getSupabase();
-
-    let result: { allowed: boolean; status: UsageStatus } | null = null;
-    if (authed && sb) {
-        result = await authedConsume(sb, userId, estimateTokens(req.body));
-    }
-    if (!result) {
-        result = await anonConsume(userId); // fallback / unauthenticated
-    }
-
-    const { allowed, status } = result;
+const sendUsageHeaders = (res: any, status: UsageStatus) => {
     res.setHeader('x-usage-used', String(status.used));
     res.setHeader('x-usage-limit', String(status.limit));
     res.setHeader('x-usage-remaining', String(status.remaining));
-    if (!allowed) {
+};
+
+/**
+ * Gate at the top of a handler: peeks at usage WITHOUT consuming, sends usage
+ * headers, and replies 429 (returning null) when the caller is over their
+ * limit. Pair with recordUsage() — call it only after the AI work succeeds, so
+ * failed provider calls don't burn the user's free quota.
+ */
+export const checkLimit = async (req: any, res: any): Promise<UsageStatus | null> => {
+    const { userId, authed } = await resolveUser(req);
+    const status = await getUsageFor(userId, authed);
+    sendUsageHeaders(res, status);
+    if (status.reachedLimit) {
         res.status(429).json({ error: 'LIMIT_REACHED', usage: status });
         return null;
     }
     return status;
+};
+
+/**
+ * Charge one use after a successful AI call and refresh the usage headers.
+ * Metering must never break a completed response, so this swallows errors.
+ */
+export const recordUsage = async (req: any, res: any): Promise<void> => {
+    try {
+        const { userId, authed } = await resolveUser(req);
+        const sb = getSupabase();
+
+        let result: { allowed: boolean; status: UsageStatus } | null = null;
+        if (authed && sb) {
+            result = await authedConsume(sb, userId, estimateTokens(req.body));
+        }
+        if (!result) {
+            result = await anonConsume(userId); // fallback / unauthenticated
+        }
+        sendUsageHeaders(res, result.status);
+    } catch {
+        /* metering failures must not fail the request */
+    }
 };

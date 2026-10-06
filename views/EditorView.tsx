@@ -43,8 +43,16 @@ const cleanHtmlOf = (el: HTMLElement): string => {
     return clone.innerHTML;
 };
 
-const stripTags = (html: string): string =>
-    new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+const stripTags = (html: string): string => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // textContent concatenates block elements without any separator
+    // ("HeadingSub" → one word). Seed a space at the end of each block so the
+    // word count and search context see the same text a reader does.
+    doc.body.querySelectorAll('p,div,li,h1,h2,h3,h4,h5,h6,blockquote,pre,tr,td,th,br,hr').forEach(el => {
+        el.appendChild(doc.createTextNode(' '));
+    });
+    return doc.body.textContent || '';
+};
 
 const escapeHtmlText = (s: string): string =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -277,6 +285,40 @@ const EditorView: React.FC<EditorViewProps> = ({
     const BLOCK_SEL = 'p, div, li, h1, h2, h3, h4, blockquote, pre';
 
     const onEditorKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey && editorRef.current) {
+            const sel = window.getSelection();
+            if (sel && sel.isCollapsed && sel.anchorNode) {
+                const root = editorRef.current;
+                const anchorEl: HTMLElement | null = sel.anchorNode.nodeType === 1
+                    ? sel.anchorNode as HTMLElement
+                    : sel.anchorNode.parentElement;
+                // Enter inside a code block must stay a newline in the same
+                // block — the default splits it into two <pre> elements.
+                const pre = anchorEl?.closest('pre');
+                if (pre && root.contains(pre)) {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, '\n');
+                    syncContent();
+                    return;
+                }
+                // Enter in an empty blockquote (the Enter×2 exit case) drops
+                // the blockquote instead of leaving a dangling empty one.
+                const bq = anchorEl?.closest('blockquote');
+                if (bq && root.contains(bq) && !(bq.textContent || '').trim()) {
+                    e.preventDefault();
+                    const p = document.createElement('p');
+                    p.appendChild(document.createElement('br'));
+                    bq.parentNode?.replaceChild(p, bq);
+                    const range = document.createRange();
+                    range.setStart(p, 0);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    syncContent();
+                    return;
+                }
+            }
+        }
         if (e.key !== ' ' || !editorRef.current) return;
         const sel = window.getSelection();
         if (!sel || !sel.isCollapsed || !sel.anchorNode) return;

@@ -1,5 +1,5 @@
 import { chatCompletion, ChatMessage } from './_providers';
-import { enforceLimit } from './_usage';
+import { checkLimit, recordUsage } from './_usage';
 import { readJsonBody } from './_http';
 
 export default async function handler(req: any, res: any) {
@@ -7,8 +7,8 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Enforce the daily free-usage limit before doing any AI work.
-    const usage = await enforceLimit(req, res);
+    // Check the daily free-usage limit; quota is consumed after a successful reply.
+    const usage = await checkLimit(req, res);
     if (!usage) return; // 429 already sent
 
     try {
@@ -35,6 +35,7 @@ Answer the user's questions based strictly on this context. Be concise, academic
             temperature: 0.6,
         });
 
+        await recordUsage(req, res);
         res.setHeader('x-ai-provider', provider);
         return res.status(200).json({ content: content || "I couldn't generate a response.", provider });
     } catch (error: any) {

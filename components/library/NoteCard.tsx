@@ -14,7 +14,7 @@ const TYPE_ICON: Record<Note['type'], string> = {
 };
 
 const metaLine = (note: Note) =>
-    [shortDate(note.date), note.type.toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
+    [shortDate(note.date), (note.type || 'text').toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
 
 // First lines of body text as a preview, like a peek at the card's contents.
 const snippetOf = (html: string): string =>
@@ -92,7 +92,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 >
                     <CheckBox checked={selected} visible={selectionActive} />
                 </button>
-                <Icon name={TYPE_ICON[note.type]} size={16} className="relative z-10 text-ink-3 shrink-0" />
+                <Icon name={TYPE_ICON[note.type] || 'description'} size={16} className="relative z-10 text-ink-3 shrink-0" />
                 <span className="relative z-10 font-serif text-[15px] text-ink truncate shrink-0 max-w-[40%]">
                     {note.title || 'Untitled'}
                 </span>

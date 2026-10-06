@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { enforceLimit } from './_usage';
+import { checkLimit, recordUsage } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const usage = await enforceLimit(req, res);
+    const usage = await checkLimit(req, res);
     if (!usage) return; // 429 already sent
 
     try {
@@ -85,6 +85,7 @@ export default async function handler(req: any, res: any) {
             };
         }
 
+        await recordUsage(req, res);
         return res.status(200).json({
             title: result.title || fileName,
             content: result.content || '<p>Could not summarize content.</p>',

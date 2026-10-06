@@ -48,15 +48,11 @@ export const processDocument = async (base64Data: string, mimeType: string, file
         if (!res.ok) throw new Error("Backend document processing failure");
         return await res.json();
     } catch (error) {
-        if (error instanceof LimitReachedError) {
-            return { title: fileName, content: `<h1>Daily Limit Reached</h1><p>${LIMIT_MESSAGE}</p>`, transcript: "" };
-        }
+        if (error instanceof LimitReachedError) throw error;
         console.error("Document Processing Error:", error);
-        return {
-            title: fileName,
-            content: "<h1>Error Processing Document</h1><p>The AI could not read this file.</p>",
-            transcript: ""
-        };
+        // Throw so callers can mark the import failed — a saved "error note"
+        // would silently destroy the file's contents.
+        throw new Error('The AI could not read this file. Try again.');
     }
 };
 
@@ -73,9 +69,11 @@ export const generateNoteFromTranscript = async (transcript: string, title?: str
         const data = await res.json();
         return data.content;
     } catch (error) {
-        if (error instanceof LimitReachedError) return `<h1>Daily Limit Reached</h1><p>${LIMIT_MESSAGE}</p>`;
+        if (error instanceof LimitReachedError) throw error;
         console.error("Note Generation Error:", error);
-        return "<h1>Error Generating Notes</h1><p>Please try again later.</p>";
+        // Throw so callers can fall back to the raw text — returning canned
+        // "Error Generating Notes" markup was persisted as the note body.
+        throw new Error('The AI could not structure this text. Try again.');
     }
 }
 
@@ -97,7 +95,7 @@ export const generateTitle = async (transcript: string): Promise<string> => {
 };
 
 // 4. Global Corpus Analysis (Multi-Format Support)
-export const generateGlobalAnalysis = async (notes: Note[], query: string, history: { role: string; text: string }[]): Promise<string> => {
+export const generateGlobalAnalysis = async (notes: Note[], query: string, history: { role: string; text: string }[]): Promise<ChatResult> => {
     try {
         // Optimization: Strip large binary data (sourceData) and keep only essential context
         // This prevents 413 (Payload Too Large) errors on Vercel's 4.5MB limit
@@ -136,11 +134,12 @@ export const generateGlobalAnalysis = async (notes: Note[], query: string, histo
 
         if (!res.ok) throw new Error("Backend analysis failure");
         const data = await res.json();
-        return data.content;
+        return { content: data.content };
     } catch (error: any) {
-        if (error instanceof LimitReachedError) return LIMIT_MESSAGE;
+        if (error instanceof LimitReachedError) return { content: '', error: LIMIT_MESSAGE };
         console.error("Analysis Error:", error);
-        return error.message || "I am currently unable to access the global knowledge base.";
+        const tooLarge = typeof error?.message === 'string' && error.message.startsWith('The combined size');
+        return { content: '', error: tooLarge ? error.message : 'I could not reach the AI service just now — your notes are fine. Try again in a moment.' };
     }
 };
 

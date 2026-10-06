@@ -55,7 +55,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings,
     setImportStatus('Importing…');
     try {
         const counts = await importBackup(file);
-        setImportStatus(`Imported ${counts.notes} notes, ${counts.decks} decks, ${counts.quizzes} quizzes.`);
+        setImportStatus(`Imported ${counts.notes} notes, ${counts.decks} decks, ${counts.quizzes} quizzes.${counts.skipped ? ` Skipped ${counts.skipped} invalid record${counts.skipped === 1 ? '' : 's'}.` : ''}`);
         onNotesChanged?.();
     } catch (err: any) {
         setImportStatus(err?.message || 'Import failed — not a valid backup file.');

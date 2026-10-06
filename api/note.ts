@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { enforceLimit } from './_usage';
+import { checkLimit, recordUsage } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -35,8 +35,8 @@ export default async function handler(req: any, res: any) {
         }
 
         if (action === 'note') {
-            // Full note generation counts against the daily free limit.
-            const usage = await enforceLimit(req, res);
+            // Full note generation counts against the daily free limit (after success).
+            const usage = await checkLimit(req, res);
             if (!usage) return; // 429 already sent
 
             const prompt = `
@@ -84,6 +84,7 @@ export default async function handler(req: any, res: any) {
                     [{ role: 'user', content: prompt }],
                     { maxTokens: 4000, temperature: 0.5 }
                 );
+                await recordUsage(req, res);
                 res.setHeader('x-ai-provider', provider);
                 return res.status(200).json({ content: content || 'Could not generate notes.', provider });
             } catch (error: any) {

@@ -1,5 +1,5 @@
 import { chatCompletion, ChatMessage } from './_providers';
-import { enforceLimit } from './_usage';
+import { checkLimit, recordUsage } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const usage = await enforceLimit(req, res);
+    const usage = await checkLimit(req, res);
     if (!usage) return; // 429 already sent
 
     try {
@@ -81,6 +81,7 @@ export default async function handler(req: any, res: any) {
             temperature: 0.7,
         });
 
+        await recordUsage(req, res);
         res.setHeader('x-ai-provider', provider);
         return res.status(200).json({ content: content || 'Unable to synthesize response.', provider });
     } catch (error: any) {

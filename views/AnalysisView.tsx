@@ -81,12 +81,28 @@ const renderWidget = (type: string, data: any) => {
     }
 };
 
+const freshMessages = (): ChatMessage[] => [{
+    id: 'init',
+    role: 'model',
+    text: "Ask about anything across your notes — I can quiz you, build timelines, compare ideas, or pull out takeaways.",
+    timestamp: new Date()
+}];
+
+/* The live conversation lives at module scope so switching to another view
+   and back doesn't wipe an in-progress session (the view unmounts on
+   navigation — server persistence only runs after a successful reply). */
+const liveAsk: { messages: ChatMessage[] | null; sessionId: string | null } = {
+    messages: null,
+    sessionId: null,
+};
+
 const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachments = [], setContextualAttachments }) => {
     const [query, setQuery] = useState("");
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>(() => liveAsk.messages ?? freshMessages());
     const [loading, setLoading] = useState(false);
     const [sessions, setSessions] = useState<any[]>([]);
-    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+    const [sessionsError, setSessionsError] = useState(false);
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => liveAsk.sessionId);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -95,16 +111,23 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
     useEffect(() => {
         fetchSessions();
-        handleNewSession();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Mirror the live conversation into the module-scope store.
+    useEffect(() => {
+        liveAsk.messages = messages;
+        liveAsk.sessionId = currentSessionId;
+    }, [messages, currentSessionId]);
 
     const fetchSessions = async () => {
         try {
             const data = await getAnalysisSessions();
             setSessions(data);
+            setSessionsError(false);
         } catch (err) {
             console.error("Failed to fetch sessions", err);
+            setSessionsError(true);
         }
     };
 
@@ -112,14 +135,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         setCurrentSessionId(null);
         setQuery("");
         if (setContextualAttachments) setContextualAttachments([]);
-        setMessages([
-            {
-                id: 'init',
-                role: 'model',
-                text: "Ask about anything across your notes — I can quiz you, build timelines, compare ideas, or pull out takeaways.",
-                timestamp: new Date()
-            }
-        ]);
+        setMessages(freshMessages());
     };
 
     const handleLoadSession = async (id: string) => {
@@ -191,13 +207,26 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         setLoading(true);
 
         try {
-            const responseText = await generateGlobalAnalysis(
+            const result = await generateGlobalAnalysis(
                 notes,
                 finalQuery,
                 messages.map(m => ({ role: m.role, text: m.text }))
             );
 
-            const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: responseText, timestamp: new Date() };
+            if (result.error) {
+                // Degraded reply: show it as a transient notice in the thread,
+                // not as model output — and don't persist it as a session.
+                const errMsg: ChatMessage = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'model',
+                    text: `*${result.error}*`,
+                    timestamp: new Date()
+                };
+                setMessages([...newMessages, errMsg]);
+                return;
+            }
+
+            const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: result.content, provider: result.provider, timestamp: new Date() };
             const finalMessages = [...newMessages, aiMsg];
             setMessages(finalMessages);
 
@@ -206,14 +235,19 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                 title = await generateTitle(originalQuery || "Ask session");
             }
 
-            const saved = await saveAnalysisSession({
-                id: currentSessionId || undefined,
-                title,
-                messages: finalMessages
-            });
-
-            if (!currentSessionId) setCurrentSessionId(saved.id);
-            fetchSessions();
+            try {
+                const saved = await saveAnalysisSession({
+                    id: currentSessionId || undefined,
+                    title,
+                    messages: finalMessages
+                });
+                if (!currentSessionId) setCurrentSessionId(saved.id);
+                fetchSessions();
+            } catch (err) {
+                // No backend persistence available — the live copy in the
+                // module store keeps the conversation through navigation.
+                console.error("Could not persist session", err);
+            }
         } catch (err) {
             console.error("Analysis failed", err);
         } finally {
@@ -348,7 +382,11 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sessions.length === 0 && (
-                        <p className="text-xs text-ink-3 px-2 py-6">Past conversations will list here.</p>
+                        <p className="text-xs text-ink-3 px-2 py-6">
+                            {sessionsError
+                                ? 'Could not load past sessions — the backend is unreachable.'
+                                : 'Past conversations will list here.'}
+                        </p>
                     )}
                     {sessions.map(s => (
                         <div

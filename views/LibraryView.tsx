@@ -287,6 +287,22 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                 <span className="font-mono text-[11px] text-ink-3">
                     {visibleNotes.length} {visibleNotes.length === 1 ? 'note' : 'notes'}
                 </span>
+                <nav className="ml-auto flex items-center gap-1" aria-label="Library views">
+                    {([
+                        { view: View.LIBRARY, label: 'All notes' },
+                        { view: View.BOOKMARKS, label: 'Pinned' },
+                        { view: View.HISTORY, label: 'Recent' },
+                    ] as const).map(v => (
+                        <button
+                            key={v.view}
+                            onClick={() => onNavigate(v.view)}
+                            className={`font-mono text-[11px] px-2 py-1 rounded-[var(--r)] transition-colors duration-100
+                                ${(v.view === View.LIBRARY ? !filterView : filterView === v.view) ? 'text-mark bg-[var(--mark-soft)]' : 'text-ink-3 hover:text-ink hover:bg-[var(--card-2)]'}`}
+                        >
+                            {v.label}
+                        </button>
+                    ))}
+                </nav>
             </header>
 
             <div className="shrink-0 border-b border-line px-5 md:px-8 py-2.5">
