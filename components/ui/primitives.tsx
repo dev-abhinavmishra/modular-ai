@@ -235,7 +235,7 @@ export const EmptyState: React.FC<{
         <div className="w-12 h-12 rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--card)] flex items-center justify-center mb-4 shadow-card">
             <Icon name={icon} size={22} className="text-ink-3" />
         </div>
-        <h3 className="font-serif text-lg text-ink">{title}</h3>
+        <h3 className="font-serif text-lg text-ink ink-write">{title}</h3>
         {body && <p className="text-sm text-ink-2 mt-1.5 max-w-sm">{body}</p>}
         {action && <div className="mt-5">{action}</div>}
     </div>

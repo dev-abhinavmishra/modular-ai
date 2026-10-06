@@ -122,7 +122,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         <Card
             interactive
             onClick={handleOpen}
-            className={`group relative flex flex-col overflow-hidden ${compact ? 'min-h-[150px]' : 'min-h-[186px]'}`}
+            className={`group relative flex flex-col overflow-visible ${compact ? 'min-h-[150px]' : 'min-h-[186px]'} ${note.isBookmarked ? 'tape' : ''}`}
         >
             {selected && <SelectedVeil />}
 

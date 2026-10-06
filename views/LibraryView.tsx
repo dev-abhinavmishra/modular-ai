@@ -283,7 +283,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
             onDrop={onDrop}
         >
             <header className="shrink-0 h-14 border-b border-line flex items-baseline px-5 md:px-8 pt-4 gap-3">
-                <h1 className="font-serif text-[20px] text-ink leading-none">{pageTitle}</h1>
+                <h1 key={pageTitle} className="font-serif text-[20px] text-ink leading-none ink-write ink-underline">{pageTitle}</h1>
                 <span className="font-mono text-[11px] text-ink-3">
                     {visibleNotes.length} {visibleNotes.length === 1 ? 'note' : 'notes'}
                 </span>
@@ -327,7 +327,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                         {pinned.length > 0 && (
                             <section>
                                 <div className="flex items-center gap-3 mb-3">
-                                    <span className="font-mono text-[11px] text-ink-3 flex items-center gap-1.5">
+                                    <span className="font-hand text-[17px] text-ink-3 flex items-center gap-1.5">
                                         Pinned
                                     </span>
                                     <Divider className="flex-1" />
@@ -339,7 +339,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                             <section>
                                 {pinned.length > 0 && (
                                     <div className="flex items-center gap-3 mb-3">
-                                        <span className="font-mono text-[11px] text-ink-3">All notes</span>
+                                        <span className="font-hand text-[17px] text-ink-3">All notes</span>
                                         <Divider className="flex-1" />
                                     </div>
                                 )}

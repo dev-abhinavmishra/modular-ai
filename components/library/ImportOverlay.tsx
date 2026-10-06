@@ -229,7 +229,7 @@ const DropVeil: React.FC = () => (
     >
         <div className="w-full max-w-lg rounded-[var(--r-lg)] border-2 border-dashed border-[var(--mark)] bg-[var(--card)] shadow-pop px-8 py-14 flex flex-col items-center text-center">
             <Icon name="upload_file" size={30} className="text-mark mb-4" />
-            <p className="font-serif text-xl text-ink">Drop files to import</p>
+            <p className="font-serif text-xl text-ink ink-write">Drop files to import</p>
             <p className="text-sm text-ink-2 mt-1.5">PDF, Word, image, audio, or text — up to 20MB each.</p>
             <div className="flex gap-1.5 mt-4 flex-wrap justify-center">
                 {['.pdf', '.docx', '.txt', '.jpg', '.mp3'].map(ext => (

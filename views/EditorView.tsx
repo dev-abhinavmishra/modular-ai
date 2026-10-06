@@ -628,6 +628,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                 <div className="absolute top-0 bottom-0 left-8 sm:left-11 w-px bg-[var(--mark)] opacity-25 pointer-events-none" />
                                 <div className="pl-12 sm:pl-16 pr-5 sm:pr-10 py-8 sm:py-10">
                                     <textarea
+                                        key={note.id}
                                         ref={titleElRef}
                                         value={title}
                                         rows={1}
@@ -638,7 +639,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                                 editorRef.current?.focus();
                                             }
                                         }}
-                                        className="w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60 resize-none overflow-hidden"
+                                        className="ink-write w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60 placeholder:font-hand placeholder:font-medium resize-none overflow-hidden"
                                         placeholder="Untitled"
                                         aria-label="Note title"
                                     />

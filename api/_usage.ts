@@ -168,8 +168,19 @@ const anonConsume = async (userId: string): Promise<{ allowed: boolean; status: 
     const sb = getSupabase();
     if (sb) {
         try {
-            const { data } = await sb.from('usage_counters').select('count').eq('user_id', userId).eq('day', day).maybeSingle();
-            const used = data?.count || 0;
+            /* Atomic conditional consume (supabase_schema.sql ≥ v2): one UPDATE
+               that increments only while under the limit — concurrent calls
+               can't all slip through. */
+            const { data, error } = await sb.rpc('consume_daily_usage', { p_user_id: userId, p_day: day, p_limit: DAILY_LIMIT });
+            if (!error && typeof data === 'number') {
+                return data < 0
+                    ? { allowed: false, status: anonStatus(-data) }
+                    : { allowed: true, status: anonStatus(data) };
+            }
+            /* Legacy schema (function not installed): non-atomic read+upsert.
+               Run the updated supabase_schema.sql to close the race. */
+            const { data: row } = await sb.from('usage_counters').select('count').eq('user_id', userId).eq('day', day).maybeSingle();
+            const used = row?.count || 0;
             if (used >= DAILY_LIMIT) return { allowed: false, status: anonStatus(used) };
             await sb.from('usage_counters').upsert({ user_id: userId, day, count: used + 1 }, { onConflict: 'user_id,day' });
             return { allowed: true, status: anonStatus(used + 1) };
@@ -185,6 +196,35 @@ const anonConsume = async (userId: string): Promise<{ allowed: boolean; status: 
     rec.count += 1;
     memory[userId] = rec;
     return { allowed: true, status: anonStatus(rec.count) };
+};
+
+/** Give back one reserved use (a failed AI call must not cost quota). */
+const anonRefund = async (userId: string): Promise<UsageStatus> => {
+    const day = today();
+    const sb = getSupabase();
+    if (sb) {
+        try {
+            const { data, error } = await sb.rpc('refund_daily_usage', { p_user_id: userId, p_day: day });
+            if (!error && typeof data === 'number') return anonStatus(data);
+        } catch {
+            /* fall through */
+        }
+    }
+    const rec = memory[userId] && memory[userId].day === day ? memory[userId] : { day, count: 0 };
+    rec.count = Math.max(0, rec.count - 1);
+    memory[userId] = rec;
+    return anonStatus(rec.count);
+};
+
+const authedRefund = async (sb: any, userId: string): Promise<UsageStatus | null> => {
+    try {
+        /* decrement_usage must exist in the project DB alongside
+           increment_usage (see supabase_schema.sql note). */
+        await sb.rpc('decrement_usage', { p_user_id: userId, p_requests: 1, p_tokens: 0 });
+        return await authedGetUsage(sb, userId);
+    } catch {
+        return null;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -215,41 +255,52 @@ const sendUsageHeaders = (res: any, status: UsageStatus) => {
     res.setHeader('x-usage-remaining', String(status.remaining));
 };
 
+export interface UsageTicket {
+    userId: string;
+    authed: boolean;
+    /** Return the reserved use after a failed AI call. Refunds the same
+        ledger that was charged — never the other bucket. */
+    refund: () => Promise<void>;
+}
+
 /**
- * Gate at the top of a handler: peeks at usage WITHOUT consuming, sends usage
- * headers, and replies 429 (returning null) when the caller is over their
- * limit. Pair with recordUsage() — call it only after the AI work succeeds, so
- * failed provider calls don't burn the user's free quota.
+ * Admission gate: ATOMICALLY reserves one use (check + consume in the same
+ * step) so concurrent callers can't all squeeze past the limit. Replies 429
+ * and returns null when over quota. A successful AI call needs nothing more;
+ * a failed one returns the use via ticket.refund().
  */
-export const checkLimit = async (req: any, res: any): Promise<UsageStatus | null> => {
+export const reserveLimit = async (req: any, res: any): Promise<UsageTicket | null> => {
     const { userId, authed } = await resolveUser(req);
-    const status = await getUsageFor(userId, authed);
-    sendUsageHeaders(res, status);
-    if (status.reachedLimit) {
-        res.status(429).json({ error: 'LIMIT_REACHED', usage: status });
+    const sb = getSupabase();
+
+    let via: 'authed' | 'anon' = 'anon';
+    let result: { allowed: boolean; status: UsageStatus } | null = null;
+    if (authed && sb) {
+        result = await authedConsume(sb, userId, estimateTokens(req.body));
+        if (result) via = 'authed';
+    }
+    if (!result) {
+        result = await anonConsume(userId); // fallback / unauthenticated
+    }
+    sendUsageHeaders(res, result.status);
+    if (!result.allowed) {
+        res.status(429).json({ error: 'LIMIT_REACHED', usage: result.status });
         return null;
     }
-    return status;
-};
 
-/**
- * Charge one use after a successful AI call and refresh the usage headers.
- * Metering must never break a completed response, so this swallows errors.
- */
-export const recordUsage = async (req: any, res: any): Promise<void> => {
-    try {
-        const { userId, authed } = await resolveUser(req);
-        const sb = getSupabase();
-
-        let result: { allowed: boolean; status: UsageStatus } | null = null;
-        if (authed && sb) {
-            result = await authedConsume(sb, userId, estimateTokens(req.body));
-        }
-        if (!result) {
-            result = await anonConsume(userId); // fallback / unauthenticated
-        }
-        sendUsageHeaders(res, result.status);
-    } catch {
-        /* metering failures must not fail the request */
-    }
+    return {
+        userId,
+        authed,
+        refund: async () => {
+            try {
+                // Refund only the ledger that was charged.
+                const status = via === 'authed'
+                    ? (sb ? await authedRefund(sb, userId) : null)
+                    : await anonRefund(userId);
+                if (status) sendUsageHeaders(res, status);
+            } catch {
+                /* refund failures must not fail the request */
+            }
+        },
+    };
 };

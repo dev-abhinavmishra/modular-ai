@@ -36,3 +36,47 @@ create table if not exists usage_counters (
     count   integer not null default 0,
     primary key (user_id, day)
 );
+
+-- ── Quota functions (v2) ──────────────────────────────────────────────────────
+-- Atomic reservation + refund for the free-usage counter. Consume increments
+-- only while the caller is under the limit (a single conditional UPDATE —
+-- concurrent calls can't race past it). Refund hands a reserved use back when
+-- the AI call fails.
+
+create or replace function consume_daily_usage(p_user_id text, p_day date, p_limit int)
+returns integer language plpgsql as $$
+declare new_count integer;
+begin
+    insert into usage_counters (user_id, day, count)
+    values (p_user_id, p_day, 1)
+    on conflict (user_id, day) do update
+        set count = usage_counters.count + 1
+        where usage_counters.count < p_limit
+    returning count into new_count;
+
+    if new_count is null then
+        -- Row exists but is already at the limit: return -(count) so the
+        -- caller can report accurate usage while seeing the deny.
+        select count into new_count from usage_counters
+        where user_id = p_user_id and day = p_day;
+        return -coalesce(new_count, 0);
+    end if;
+    return new_count;
+end $$;
+
+create or replace function refund_daily_usage(p_user_id text, p_day date)
+returns integer language plpgsql as $$
+declare new_count integer;
+begin
+    update usage_counters
+    set count = greatest(count - 1, 0)
+    where user_id = p_user_id and day = p_day
+    returning count into new_count;
+    return coalesce(new_count, 0);
+end $$;
+
+-- NOTE for the AUTHENTICATED path: api/_usage.ts calls `increment_usage` /
+-- `decrement_usage` against your user_limits table. That table predates this
+-- schema file, so mirror whatever increment_usage does — the app calls
+--   decrement_usage(p_user_id uuid, p_requests int, p_tokens int)
+-- to refund a reserved use after a failed AI call.

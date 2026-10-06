@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { checkLimit, recordUsage } from './_usage';
+import { reserveLimit } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -35,9 +35,9 @@ export default async function handler(req: any, res: any) {
         }
 
         if (action === 'note') {
-            // Full note generation counts against the daily free limit (after success).
-            const usage = await checkLimit(req, res);
-            if (!usage) return; // 429 already sent
+            // Full note generation reserves one use; failure refunds it.
+            const ticket = await reserveLimit(req, res);
+            if (!ticket) return; // 429 already sent
 
             const prompt = `
             You are an expert note-taker. Transform the following raw text/transcript into a high-quality, structured study guide.
@@ -84,11 +84,11 @@ export default async function handler(req: any, res: any) {
                     [{ role: 'user', content: prompt }],
                     { maxTokens: 4000, temperature: 0.5 }
                 );
-                await recordUsage(req, res);
                 res.setHeader('x-ai-provider', provider);
                 return res.status(200).json({ content: content || 'Could not generate notes.', provider });
             } catch (error: any) {
                 console.error('Note generation failed:', error);
+                await ticket.refund();
                 return res.status(503).json({ error: error.message || 'All AI providers are currently unavailable.' });
             }
         }
