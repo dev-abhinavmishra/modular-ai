@@ -288,7 +288,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
     };
 
     const handleCancel = () => {
-        if (recorderState !== 'idle') {
+        if (recorderState !== 'idle' || failedAudio) {
             setConfirmDiscard(true);
         } else {
             onCancel();

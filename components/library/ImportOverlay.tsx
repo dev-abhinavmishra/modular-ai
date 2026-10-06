@@ -37,8 +37,11 @@ const escapeHtml = (s: string) =>
 const textToNoteHtml = (text: string): string => {
     const blocks = text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
     if (blocks.length === 0) return '<p></p>';
+    // Keep leading indentation verbatim (code, lists) — HTML collapses it.
+    const preserveIndent = (line: string) =>
+        line.replace(/^[\t ]+/, ws => ws.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;'));
     return blocks
-        .map(b => `<p>${escapeHtml(b).replace(/\n/g, '<br/>')}</p>`)
+        .map(b => `<p>${escapeHtml(b).split('\n').map(preserveIndent).join('<br/>')}</p>`)
         .join('');
 };
 

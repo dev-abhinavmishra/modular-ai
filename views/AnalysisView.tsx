@@ -91,14 +91,16 @@ const freshMessages = (): ChatMessage[] => [{
 /* The live conversation lives at module scope so switching to another view
    and back doesn't wipe an in-progress session (the view unmounts on
    navigation — server persistence only runs after a successful reply). */
-const liveAsk: { messages: ChatMessage[] | null; sessionId: string | null } = {
+const liveAsk: { messages: ChatMessage[] | null; sessionId: string | null; transientError: string | null } = {
     messages: null,
     sessionId: null,
+    transientError: null,
 };
 
 const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachments = [], setContextualAttachments }) => {
     const [query, setQuery] = useState("");
     const [messages, setMessages] = useState<ChatMessage[]>(() => liveAsk.messages ?? freshMessages());
+    const [transientError, setTransientError] = useState<string | null>(() => liveAsk.transientError);
     const [loading, setLoading] = useState(false);
     const [sessions, setSessions] = useState<any[]>([]);
     const [sessionsError, setSessionsError] = useState(false);
@@ -118,7 +120,20 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
     useEffect(() => {
         liveAsk.messages = messages;
         liveAsk.sessionId = currentSessionId;
-    }, [messages, currentSessionId]);
+        liveAsk.transientError = transientError;
+    }, [messages, currentSessionId, transientError]);
+
+    /* Write-through: handleSend keeps running after this view unmounts on
+       navigation, so the reply must reach liveAsk even when setState is a
+       no-op on the dead component. */
+    const commitMessages = (msgs: ChatMessage[]) => {
+        setMessages(msgs);
+        liveAsk.messages = msgs;
+    };
+    const commitError = (text: string | null) => {
+        setTransientError(text);
+        liveAsk.transientError = text;
+    };
 
     const fetchSessions = async () => {
         try {
@@ -135,7 +150,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         setCurrentSessionId(null);
         setQuery("");
         if (setContextualAttachments) setContextualAttachments([]);
-        setMessages(freshMessages());
+        commitMessages(freshMessages());
+        commitError(null);
     };
 
     const handleLoadSession = async (id: string) => {
@@ -145,7 +161,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
             setCurrentSessionId(data.id);
             setQuery("");
             if (setContextualAttachments) setContextualAttachments([]);
-            setMessages(data.messages.map((m: any) => ({
+            commitError(null);
+            commitMessages(data.messages.map((m: any) => ({
                 ...m,
                 timestamp: new Date(m.timestamp)
             })));
@@ -197,7 +214,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: finalQuery, timestamp: new Date() };
         const newMessages = [...messages, userMsg];
-        setMessages(newMessages);
+        commitMessages(newMessages);
+        commitError(null);
         setQuery("");
 
         if (setContextualAttachments) {
@@ -214,21 +232,15 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
             );
 
             if (result.error) {
-                // Degraded reply: show it as a transient notice in the thread,
-                // not as model output — and don't persist it as a session.
-                const errMsg: ChatMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'model',
-                    text: `*${result.error}*`,
-                    timestamp: new Date()
-                };
-                setMessages([...newMessages, errMsg]);
+                // Degraded reply: transient notice rendered under the thread —
+                // never model output, never sent back as history, never saved.
+                commitError(result.error);
                 return;
             }
 
             const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: result.content, provider: result.provider, timestamp: new Date() };
             const finalMessages = [...newMessages, aiMsg];
-            setMessages(finalMessages);
+            commitMessages(finalMessages);
 
             let title = currentSessionId ? sessions.find(s => s.id === currentSessionId)?.title : null;
             if (!title) {
@@ -484,6 +496,17 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                             </div>
                             <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-4">
                                 <ThinkingRow label="reading your notes" />
+                            </div>
+                        </div>
+                    )}
+
+                    {transientError && !loading && (
+                        <div className="flex gap-3">
+                            <div className="w-7 h-7 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 shadow-card mt-0.5">
+                                <Icon name="chat" size={14} className="text-ink-3" />
+                            </div>
+                            <div className="px-4 py-3 rounded-[var(--r-lg)] text-[13px] leading-relaxed border border-dashed border-line text-ink-3 italic">
+                                {transientError}
                             </div>
                         </div>
                     )}

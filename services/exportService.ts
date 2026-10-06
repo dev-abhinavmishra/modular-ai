@@ -1,4 +1,4 @@
-import { Note, Deck, Quiz, NoteVersion } from '../types';
+import { Note, Deck, Quiz, NoteVersion, Attachment } from '../types';
 import { getAllNotes, getAllDecks, getAllQuizzes, getAllNoteVersions, saveNote, saveDeck, saveQuiz, putNoteVersions } from './storageService';
 import { sanitizeHtml } from './sanitize';
 
@@ -133,11 +133,41 @@ const isValidNote = (n: any): n is Note =>
     typeof n.type === 'string' && NOTE_TYPES.has(n.type) &&
     Array.isArray(n.tags);
 
+const isValidAttachment = (a: any): a is Attachment =>
+    !!a && (a.type === 'image' || a.type === 'text' || a.type === 'pdf') &&
+    typeof a.content === 'string' && typeof a.name === 'string';
+
+/* The file is untrusted input: coerce out any junk nested inside a record
+   that passed the shape check rather than storing it verbatim. */
+const sanitizeNote = (n: Note): Note => {
+    n.tags = n.tags.filter((t: any) => typeof t === 'string');
+    if (n.attachments !== undefined) {
+        if (!Array.isArray(n.attachments)) delete n.attachments;
+        else n.attachments = n.attachments.filter(isValidAttachment);
+    }
+    if (n.pinnedMoments !== undefined && !Array.isArray(n.pinnedMoments)) delete n.pinnedMoments;
+    if (n.sourceData !== undefined &&
+        (!n.sourceData || typeof n.sourceData.mimeType !== 'string' || typeof n.sourceData.data !== 'string')) {
+        delete n.sourceData;
+    }
+    return n;
+};
+
+const isValidCard = (c: any): boolean =>
+    !!c && typeof c.id === 'string' && typeof c.front === 'string' && typeof c.back === 'string';
+
 const isValidDeck = (d: any): d is Deck =>
-    !!d && typeof d.id === 'string' && typeof d.title === 'string' && Array.isArray(d.cards);
+    !!d && typeof d.id === 'string' && typeof d.title === 'string' &&
+    Array.isArray(d.cards) && d.cards.every(isValidCard);
+
+const isValidQuestion = (q: any): boolean =>
+    !!q && typeof q.question === 'string' &&
+    Array.isArray(q.options) && q.options.every((o: any) => typeof o === 'string') &&
+    typeof q.answer === 'string';
 
 const isValidQuiz = (q: any): q is Quiz =>
-    !!q && typeof q.id === 'string' && typeof q.title === 'string' && Array.isArray(q.questions);
+    !!q && typeof q.id === 'string' && typeof q.title === 'string' &&
+    Array.isArray(q.questions) && q.questions.every(isValidQuestion);
 
 const isValidVersion = (v: any): v is NoteVersion =>
     !!v && typeof v.id === 'string' && typeof v.noteId === 'string' && typeof v.content === 'string';
@@ -152,7 +182,7 @@ export const importBackup = async (file: File): Promise<{ notes: number; decks: 
     let skipped = 0;
     let notes = 0;
     for (const n of data.notes) {
-        if (isValidNote(n)) { await saveNote(n); notes++; } else skipped++;
+        if (isValidNote(n)) { await saveNote(sanitizeNote(n)); notes++; } else skipped++;
     }
     let decks = 0;
     for (const d of (data.decks || [])) {
@@ -160,7 +190,11 @@ export const importBackup = async (file: File): Promise<{ notes: number; decks: 
     }
     let quizzes = 0;
     for (const q of (data.quizzes || [])) {
-        if (isValidQuiz(q)) { await saveQuiz(q); quizzes++; } else skipped++;
+        if (isValidQuiz(q)) {
+            if (!Array.isArray(q.attempts)) q.attempts = []; // older backups may lack it
+            await saveQuiz(q);
+            quizzes++;
+        } else skipped++;
     }
     if (Array.isArray(data.versions)) {
         await putNoteVersions((data.versions as any[]).filter(isValidVersion));

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* "Index" primitives — the only sanctioned building blocks.
@@ -165,25 +165,37 @@ export const Segmented: React.FC<{
 );
 
 /* ---- Modal & popover ---- */
+
+/* Open modals stack: only the topmost one owns Escape. A hidden modal must
+   not swallow the press meant for the modal rendered above it. */
+const modalStack: symbol[] = [];
+
 export const Modal: React.FC<{
     open: boolean;
     onClose: () => void;
     children: React.ReactNode;
     width?: string;
 }> = ({ open, onClose, children, width = 'max-w-md' }) => {
+    const idRef = useRef(Symbol('modal'));
     /* Escape dismisses the modal. Capture phase so a view-level Escape
        handler (e.g. the editor's) doesn't also fire for the same press. */
     useEffect(() => {
         if (!open) return;
+        const id = idRef.current;
+        modalStack.push(id);
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-                onClose();
-            }
+            if (e.key !== 'Escape') return;
+            if (modalStack[modalStack.length - 1] !== id) return;
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            onClose();
         };
         window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            const i = modalStack.indexOf(id);
+            if (i !== -1) modalStack.splice(i, 1);
+        };
     }, [open, onClose]);
 
     return (
