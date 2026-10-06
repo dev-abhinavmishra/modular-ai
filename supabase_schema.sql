@@ -75,8 +75,18 @@ begin
     return coalesce(new_count, 0);
 end $$;
 
--- NOTE for the AUTHENTICATED path: api/_usage.ts calls `increment_usage` /
--- `decrement_usage` against your user_limits table. That table predates this
--- schema file, so mirror whatever increment_usage does — the app calls
---   decrement_usage(p_user_id uuid, p_requests int, p_tokens int)
--- to refund a reserved use after a failed AI call.
+-- ── Quota functions for the AUTHENTICATED path ─────────────────────────────
+-- `increment_usage` / `get_user_limits` against your `user_limits` table were
+-- created before this file; `decrement_usage` mirrors increment_usage to refund
+-- a reserved use after a failed AI call:
+create or replace function public.decrement_usage(p_user_id uuid, p_requests integer default 1, p_tokens bigint default 0)
+returns void language plpgsql security definer as $$
+begin
+  update public.user_limits
+  set requests_used = greatest(0, requests_used - p_requests),
+      tokens_used   = greatest(0::bigint, tokens_used - p_tokens),
+      updated_at    = now()
+  where user_id = p_user_id;
+end $$;
+-- Live note: the deployed `increment_usage` was also patched to lock its row
+-- (`select ... for update`) so concurrent calls can't race past requests_cap.
