@@ -303,7 +303,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                 />
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-5 md:px-8 py-6">
+            <div className="flex-1 overflow-y-auto custom-scrollbar page-lines pl-5 pr-5 md:pr-8 lg:pl-[76px] py-6">
                 {visibleNotes.length === 0 ? (
                     emptyState()
                 ) : (

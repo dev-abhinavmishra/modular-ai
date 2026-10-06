@@ -569,7 +569,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                         onToggleFocus={() => setFocusMode(f => !f)}
                     />
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative" ref={scrollRef}>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative page-lines" ref={scrollRef}>
                         <FindReplace
                             open={findOpen}
                             onClose={() => setFindOpen(false)}
@@ -617,7 +617,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                         )}
                                         <div
                                             ref={editorRef}
-                                            className="note-body outline-none min-h-[55vh] caret-[var(--mark)]"
+                                            className="note-body ruled outline-none min-h-[55vh] caret-[var(--mark)]"
                                             style={{ fontSize, outline: 'none' }}
                                             contentEditable
                                             suppressContentEditableWarning

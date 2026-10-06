@@ -25,6 +25,9 @@
   --warn: #9A6A00;
   --bad: #A83226;
   --tape: rgba(58, 92, 140, 0.12);
+  --rule-blue: #C3CFE4;
+  --margin-red: #D9A493;
+  --hole: rgba(30, 26, 18, 0.18);
   --r: 8px;
   --r-lg: 10px;
   --shadow-card: 0 1px 0 rgba(30, 26, 18, 0.07), 0 10px 28px -20px rgba(30, 26, 18, 0.35);
@@ -48,6 +51,9 @@
   --warn: #C99A2E;
   --bad: #D85C4E;
   --tape: rgba(120, 160, 210, 0.16);
+  --rule-blue: #38415C;
+  --margin-red: #7C4B3E;
+  --hole: rgba(0, 0, 0, 0.50);
   --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.30), 0 10px 28px -20px rgba(0, 0, 0, 0.80);
   --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.30), 0 16px 36px -16px rgba(0, 0, 0, 0.85);
   --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.35), 0 18px 44px -16px rgba(0, 0, 0, 0.85);
@@ -87,7 +93,57 @@ body {
 .font-sans { font-family: var(--font-sans); }
 .font-mono { font-family: var(--font-mono); }
 
-/* Textures: index-card ruled lines and faint desk graph grid. */
+/* ---------- Loose-leaf notebook motif ----------
+   The whole app is a ruled field notebook: pen-blue rules scroll with the
+   text, a vermilion margin rule runs down the left edge, and punched holes
+   dot the binding side on wide screens. The ruler class goes on the view's
+   scrolling element so the lines move with the page. */
+.page-lines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 27px,
+    var(--rule-blue) 27px,
+    var(--rule-blue) 28px
+  );
+  background-attachment: local;
+}
+@media (min-width: 1024px) {
+  .page-lines {
+    background-image:
+      radial-gradient(circle 5px, var(--hole) 0 5px, transparent 6px),
+      linear-gradient(var(--margin-red), var(--margin-red)),
+      repeating-linear-gradient(0deg, transparent 0, transparent 27px, var(--rule-blue) 27px, var(--rule-blue) 28px);
+    background-size: 14px 300px, 1px 100%, auto;
+    background-position: 19px 120px, 52px 0, 0 0;
+    background-repeat: repeat-y, no-repeat, repeat;
+  }
+}
+
+/* A card face: red header rule, pen-blue rules beneath — an index card. */
+.card-ruled {
+  background-image:
+    linear-gradient(var(--margin-red), var(--margin-red)),
+    repeating-linear-gradient(0deg, transparent 0, transparent 23px, var(--rule-blue) 23px, var(--rule-blue) 24px);
+  background-size: 100% 1px, auto;
+  background-position: 0 4px, 0 14px;
+  background-repeat: no-repeat, repeat;
+  background-attachment: local;
+}
+
+/* Ruled sheet without the header rule — ledger pages, answer sheets. */
+.sheet-ruled {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 23px,
+    var(--rule-blue) 23px,
+    var(--rule-blue) 24px
+  );
+  background-attachment: local;
+}
+
+/* Old name kept for the card footer strip. */
 .rule-lines {
   background-image: repeating-linear-gradient(
     to bottom,
@@ -97,14 +153,21 @@ body {
     var(--line) 28px
   );
 }
-.desk-grid {
-  background-image:
-    linear-gradient(to right, var(--line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: center;
+
+/* Ruled body text — lines land just under each line box so writing reads as
+   if it were done on the page itself. em-based so it tracks font size. */
+.note-body.ruled,
+.ruled-body {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent calc(1.65em - 1px),
+    var(--rule-blue) calc(1.65em - 1px),
+    var(--rule-blue) 1.65em
+  );
+  background-position: 0 0.4em;
+  background-attachment: local;
 }
-.desk-grid-faint { opacity: 0.35; }
 
 /* Material Symbols: thin, consistent, deliberate. */
 .material-symbols-outlined {

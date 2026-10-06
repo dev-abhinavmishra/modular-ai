@@ -146,9 +146,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({ deck: initialDeck, onExit
                         aria-label={flipped ? 'Card back — click to see front' : 'Card front — click to flip'}
                     >
                         {/* front */}
-                        <div className="backface-hidden absolute inset-0 bg-card border border-line rounded-[var(--r-lg)] shadow-card flex flex-col">
-                            <span className="absolute top-3 left-4 font-mono text-[10px] text-ink-3">front</span>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-10 flex items-center justify-center">
+                        <div className="backface-hidden absolute inset-0 bg-card border border-line rounded-[var(--r-lg)] shadow-card flex flex-col overflow-hidden">
+                            <span className="absolute top-3 left-4 font-mono text-[10px] text-ink-3 z-10">front</span>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-10 flex items-center justify-center card-ruled">
                                 <p className="font-serif text-xl sm:text-2xl leading-relaxed text-ink text-center">{card.front}</p>
                             </div>
                             <div className="h-8 border-t border-line flex items-center justify-center">
@@ -156,9 +156,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({ deck: initialDeck, onExit
                             </div>
                         </div>
                         {/* back */}
-                        <div className="backface-hidden rotate-y-180 absolute inset-0 bg-card border border-line rounded-[var(--r-lg)] shadow-card flex flex-col">
-                            <span className="absolute top-3 left-4 font-mono text-[10px] text-mark">answer</span>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-10 flex items-center justify-center">
+                        <div className="backface-hidden rotate-y-180 absolute inset-0 bg-card border border-line rounded-[var(--r-lg)] shadow-card flex flex-col overflow-hidden">
+                            <span className="absolute top-3 left-4 font-mono text-[10px] text-mark z-10">answer</span>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-10 flex items-center justify-center card-ruled">
                                 <p className="font-serif text-lg sm:text-xl leading-relaxed text-ink text-center">{card.back}</p>
                             </div>
                             <div className="h-8 border-t border-line flex items-center justify-center">

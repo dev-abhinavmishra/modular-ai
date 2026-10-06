@@ -70,7 +70,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings,
   ];
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 relative bg-paper overflow-y-auto custom-scrollbar">
+    <main className="flex-1 flex flex-col min-w-0 relative bg-paper overflow-y-auto custom-scrollbar page-lines lg:pl-[76px]">
       <header className="shrink-0 h-14 border-b border-line flex items-center px-4 md:px-6">
         <h1 className="font-serif text-xl text-ink">Settings</h1>
       </header>

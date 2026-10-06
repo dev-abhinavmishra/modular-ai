@@ -133,7 +133,8 @@ const QuizRunner: React.FC<QuizRunnerProps> = ({ quiz: initialQuiz, onExit }) =>
                         <h2 className="font-serif text-xl sm:text-2xl leading-snug text-ink">{question.question}</h2>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    {/* answer sheet — ruled like the back of a card */}
+                    <div className="flex flex-col gap-2 sheet-ruled rounded-[var(--r-lg)] px-3 py-2 -mx-3">
                         {question.options.map((opt, i) => {
                             const isCorrect = i === answerIdx;
                             const isPicked = i === picked;

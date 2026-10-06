@@ -386,7 +386,7 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                 </header>
 
                 {/* Messages */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 lg:pl-[76px] py-6 custom-scrollbar page-lines">
                     {messages.length <= 1 && !loading ? (
                         <div className="h-full flex flex-col items-center justify-center text-center rise">
                             <div className="w-11 h-11 rounded-[var(--r-lg)] bg-card border border-line shadow-card flex items-center justify-center">

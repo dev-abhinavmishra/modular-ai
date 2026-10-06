@@ -179,7 +179,7 @@ const StudyView: React.FC<StudyViewProps> = ({ notes, onOpenNote }) => {
                 </Btn>
             </header>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar page-lines lg:pl-[76px]">
                 <div className="max-w-5xl mx-auto px-6 py-6">
                     {!loaded ? (
                         <div className="flex items-center justify-center py-24"><Spinner /></div>

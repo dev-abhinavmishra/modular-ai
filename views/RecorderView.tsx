@@ -274,7 +274,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
         const activeIdx = processingStage === 'transcribing' ? 0 : 1;
         return (
             <main className="flex-1 flex flex-col min-w-0 relative bg-paper">
-                <div className="flex-1 flex items-center justify-center desk-grid desk-grid-faint">
+                <div className="flex-1 flex items-center justify-center page-lines">
                     <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-8 py-7 w-72">
                         <p className="font-mono text-[10px] text-ink-3 mb-4">{formatTime(elapsedSeconds)} recorded</p>
                         <div className="space-y-3">
@@ -337,7 +337,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
             <div className="flex-1 flex min-h-0">
                 {/* Recording stage */}
                 <section className="flex-1 flex flex-col min-w-0 relative">
-                    <div className="flex-1 desk-grid desk-grid-faint flex flex-col items-center justify-center px-6 py-8">
+                    <div className="flex-1 page-lines flex flex-col items-center justify-center px-6 py-8">
                         {/* Timecode */}
                         <div className="font-mono text-5xl md:text-6xl text-ink tabular-nums tracking-tight">
                             {formatTime(elapsedSeconds)}

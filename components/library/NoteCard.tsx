@@ -141,7 +141,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 />
             </div>
 
-            <div className={`relative z-10 px-4 ${compact ? 'pt-1' : 'pt-2'} flex-1 flex flex-col min-w-0`}>
+            <div className={`relative z-10 px-4 ${compact ? 'pt-1' : 'pt-2'} pb-2 flex-1 flex flex-col min-w-0 card-ruled`}>
                 <h3 className={`font-serif text-ink leading-snug line-clamp-2 ${compact ? 'text-[15px]' : 'text-[17px]'}`}>
                     {note.title || 'Untitled'}
                 </h3>
