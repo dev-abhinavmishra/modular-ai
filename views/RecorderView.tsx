@@ -29,6 +29,9 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
     const [pinnedItems, setPinnedItems] = useState<PinnedMoment[]>([]);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [confirmDiscard, setConfirmDiscard] = useState(false);
+    // Recording kept when transcription fails — a transient API error must
+    // never throw away audio the user already captured.
+    const [failedAudio, setFailedAudio] = useState<{ blob: Blob; mimeType: string } | null>(null);
 
     // Microphone picker
     const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
@@ -130,7 +133,10 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
 
             const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
             recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
-            recorder.onstop = () => handleTranscription(recorder.mimeType || mimeType || 'audio/webm');
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || 'audio/webm' });
+                handleTranscription(blob, recorder.mimeType || mimeType || 'audio/webm');
+            };
             recorder.start(1000);
             recorderRef.current = recorder;
 
@@ -175,8 +181,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
         if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     };
 
-    const handleTranscription = async (mimeType: string) => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+    const handleTranscription = async (blob: Blob, mimeType: string) => {
         if (audioContextRef.current) { audioContextRef.current.close().catch(() => {}); audioContextRef.current = null; }
         analyserRef.current = null;
 
@@ -195,6 +200,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
 
             if (!transcript || !transcript.trim()) {
                 setIsProcessing(false);
+                setFailedAudio({ blob, mimeType });
                 setErrorMessage('Could not detect any speech in the recording.');
                 return;
             }
@@ -227,11 +233,48 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
             };
 
             setIsProcessing(false);
+            setFailedAudio(null);
             onSaveSession(newNote);
         } catch (err: any) {
             console.error('Transcription/synthesis failed:', err);
             setIsProcessing(false);
+            setFailedAudio({ blob, mimeType });
             setErrorMessage(err.message || 'Failed to process the recording. Try again.');
+        }
+    };
+
+    const retryTranscription = () => {
+        const audio = failedAudio;
+        setFailedAudio(null);
+        setErrorMessage(null);
+        if (audio) handleTranscription(audio.blob, audio.mimeType);
+    };
+
+    /* Save the recording verbatim when transcription is unavailable — the
+       audio stays playable from the note instead of being discarded. */
+    const saveAudioOnly = async () => {
+        const audio = failedAudio;
+        if (!audio) return;
+        try {
+            const base64 = await blobToBase64(audio.blob);
+            const newNote: Note = {
+                id: Date.now().toString(),
+                title: `Recording ${new Date().toLocaleDateString()}`,
+                date: new Date().toLocaleString(),
+                duration: formatTime(elapsedMs / 1000),
+                content: '<p>Audio recording — transcription was unavailable when this was saved.</p>',
+                transcript: '',
+                type: 'AUDIO',
+                tags: ['Recording'],
+                pinnedMoments: pinnedItems.length > 0 ? pinnedItems : undefined,
+                sourceData: { mimeType: audio.mimeType, data: base64 },
+            };
+            setFailedAudio(null);
+            setErrorMessage(null);
+            onSaveSession(newNote);
+        } catch (err) {
+            console.error('Failed to save audio note:', err);
+            setErrorMessage('Could not save the recording. Try again.');
         }
     };
 
@@ -245,7 +288,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
     };
 
     const handleCancel = () => {
-        if (recorderState !== 'idle') {
+        if (recorderState !== 'idle' || failedAudio) {
             setConfirmDiscard(true);
         } else {
             onCancel();
@@ -274,7 +317,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
         const activeIdx = processingStage === 'transcribing' ? 0 : 1;
         return (
             <main className="flex-1 flex flex-col min-w-0 relative bg-paper">
-                <div className="flex-1 flex items-center justify-center desk-grid desk-grid-faint">
+                <div className="flex-1 flex items-center justify-center page-lines">
                     <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-8 py-7 w-72">
                         <p className="font-mono text-[10px] text-ink-3 mb-4">{formatTime(elapsedSeconds)} recorded</p>
                         <div className="space-y-3">
@@ -304,7 +347,7 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
         <main className="flex-1 flex flex-col min-w-0 relative bg-paper">
             {/* Header */}
             <header className="shrink-0 h-14 border-b border-line flex items-center justify-between px-4 md:px-6 gap-3">
-                <h1 className="font-serif text-xl text-ink">Record</h1>
+                <h1 className="font-serif text-xl text-ink ink-write ink-underline">Record</h1>
 
                 <div className="flex items-center gap-2 min-w-0">
                     <Icon name="mic" size={16} className="text-ink-3 hidden sm:block" />
@@ -328,16 +371,22 @@ const RecorderView: React.FC<RecorderViewProps> = ({ onSaveSession, onCancel, au
             </header>
 
             {errorMessage && (
-                <div className="shrink-0 border-b border-[var(--bad)]/30 bg-[var(--bad)]/10 px-4 py-2 flex items-center justify-center gap-2 text-sm text-bad">
+                <div className="shrink-0 border-b border-[var(--bad)]/30 bg-[var(--bad)]/10 px-4 py-2 flex items-center justify-center gap-3 text-sm text-bad">
                     <Icon name="error" size={16} />
-                    {errorMessage}
+                    <span>{errorMessage}</span>
+                    {failedAudio && (
+                        <span className="flex items-center gap-2">
+                            <Btn size="sm" variant="quiet" onClick={retryTranscription}>Retry</Btn>
+                            <Btn size="sm" variant="quiet" icon="save" onClick={saveAudioOnly}>Save audio</Btn>
+                        </span>
+                    )}
                 </div>
             )}
 
             <div className="flex-1 flex min-h-0">
                 {/* Recording stage */}
                 <section className="flex-1 flex flex-col min-w-0 relative">
-                    <div className="flex-1 desk-grid desk-grid-faint flex flex-col items-center justify-center px-6 py-8">
+                    <div className="flex-1 page-lines flex flex-col items-center justify-center px-6 py-8">
                         {/* Timecode */}
                         <div className="font-mono text-5xl md:text-6xl text-ink tabular-nums tracking-tight">
                             {formatTime(elapsedSeconds)}

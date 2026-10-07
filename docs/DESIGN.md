@@ -4,8 +4,11 @@ The app's new visual identity. Everything below is binding for all views and com
 
 ## Concept
 
-A scholar's working index card system. Notes are paper cards, decks are real index
-cards, annotation is a vermilion pencil. The materials: **paper, ink, pencil,
+A loose-leaf field notebook. The entire app is ruled paper: pen-blue rules
+scroll with the content, a pink margin rule runs down the left edge of every
+page, and punched holes dot the binding side on wide screens. Notes are index
+cards (red header rule, blue rules beneath), writing sits on ruled lines, and
+annotation is a vermilion pencil. The materials: **paper, ink, pencil,
 hairlines**. Nothing glows, nothing blurs, nothing floats in glass.
 
 Anti-goals (the old design, now banned): acid-lime `#c4f20d` on near-black, Space
@@ -34,6 +37,9 @@ CSS custom properties in `index.css`. Always use the variables — never raw hex
 | `--warn` | #9A6A00 | #C99A2E | caution |
 | `--bad` | #A83226 | #D85C4E | errors, destructive |
 | `--tape` | rgba(58,92,140,.12) | rgba(120,160,210,.16) | selection/highlight marks |
+| `--rule-blue` | #C3CFE4 | #38415C | pen-blue notebook rules |
+| `--margin-red` | #D9A493 | #7C4B3E | the pink margin rule |
+| `--hole` | rgba(30,26,18,.18) | rgba(0,0,0,.50) | punched hole shadows |
 
 Utility classes provided (use these instead of ad-hoc colors):
 `bg-paper`, `bg-card`, `bg-card-2`, `text-ink`, `text-ink-2`, `text-ink-3`,
@@ -60,9 +66,13 @@ label); italic serif for annotations. No tracked-out ALL-CAPS eyebrows.
 - Shadow = paper edge, not glow: `shadow-card` = `0 1px 0 rgba(30,26,18,.07),
   0 8px 24px -16px rgba(30,26,18,.25)`; hover lift `shadow-lift`. No colored
   shadows, no `shadow-*-glow`.
-- Textures: `.rule-lines` = faint baseline rules (index-card). `.desk-grid` =
-  faint 24px graph grid, only on recorder/analysis "desk" surfaces. Use both at
-  very low opacity — texture, not wallpaper.
+- The page motif is binding: `.page-lines` on every view's scrolling element
+  gives the ruled sheet (+ margin rule and punched holes at ≥lg). Never put a
+  flat `bg-paper` surface where `.page-lines` belongs.
+- `.card-ruled` = index-card face (red header rule + blue rules): note cards,
+  review card faces. `.sheet-ruled` = plain ruled sheet: deck cards, quiz
+  answer sheets. `.note-body.ruled` = body text written on lines (em-based,
+  tracks the editor font-size setting).
 - The selection/highlight look is `--tape` wash + a 2px `mark` left edge.
 
 ## Motion (framer-motion is installed)
@@ -86,8 +96,9 @@ outside the toolbar.
 
 - Sidebar: 240px rail (16px icon rail on <lg). Hairline right border. Nav labels
   in sans; badges/counts in mono.
-- Content: views are a "desk" (`bg-paper`); the note editor is a `bg-card` sheet
-  centered with a hairline edge and ruled left margin line.
+- Content: views are notebook pages (`bg-paper` + `.page-lines`); the note
+  editor is a `bg-card` sheet centered with a hairline edge and ruled left
+  margin line.
 - Headers: slim 56–64px bars, hairline bottom border, page title in serif 20px,
   actions right. No `backdrop-blur`.
 - Widgets/modals/cards sit on `bg-card` with `border-line` and `shadow-card`.

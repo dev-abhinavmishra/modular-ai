@@ -43,8 +43,16 @@ const cleanHtmlOf = (el: HTMLElement): string => {
     return clone.innerHTML;
 };
 
-const stripTags = (html: string): string =>
-    new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+const stripTags = (html: string): string => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // textContent concatenates block elements without any separator
+    // ("HeadingSub" → one word). Seed a space at the end of each block so the
+    // word count and search context see the same text a reader does.
+    doc.body.querySelectorAll('p,div,li,h1,h2,h3,h4,h5,h6,blockquote,pre,tr,td,th,br,hr').forEach(el => {
+        el.appendChild(doc.createTextNode(' '));
+    });
+    return doc.body.textContent || '';
+};
 
 const escapeHtmlText = (s: string): string =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -277,6 +285,40 @@ const EditorView: React.FC<EditorViewProps> = ({
     const BLOCK_SEL = 'p, div, li, h1, h2, h3, h4, blockquote, pre';
 
     const onEditorKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey && editorRef.current) {
+            const sel = window.getSelection();
+            if (sel && sel.isCollapsed && sel.anchorNode) {
+                const root = editorRef.current;
+                const anchorEl: HTMLElement | null = sel.anchorNode.nodeType === 1
+                    ? sel.anchorNode as HTMLElement
+                    : sel.anchorNode.parentElement;
+                // Enter inside a code block must stay a newline in the same
+                // block — the default splits it into two <pre> elements.
+                const pre = anchorEl?.closest('pre');
+                if (pre && root.contains(pre)) {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, '\n');
+                    syncContent();
+                    return;
+                }
+                // Enter in an empty blockquote (the Enter×2 exit case) drops
+                // the blockquote instead of leaving a dangling empty one.
+                const bq = anchorEl?.closest('blockquote');
+                if (bq && root.contains(bq) && !(bq.textContent || '').trim()) {
+                    e.preventDefault();
+                    const p = document.createElement('p');
+                    p.appendChild(document.createElement('br'));
+                    bq.parentNode?.replaceChild(p, bq);
+                    const range = document.createRange();
+                    range.setStart(p, 0);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    syncContent();
+                    return;
+                }
+            }
+        }
         if (e.key !== ' ' || !editorRef.current) return;
         const sel = window.getSelection();
         if (!sel || !sel.isCollapsed || !sel.anchorNode) return;
@@ -569,7 +611,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                         onToggleFocus={() => setFocusMode(f => !f)}
                     />
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative" ref={scrollRef}>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative page-lines" ref={scrollRef}>
                         <FindReplace
                             open={findOpen}
                             onClose={() => setFindOpen(false)}
@@ -586,6 +628,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                 <div className="absolute top-0 bottom-0 left-8 sm:left-11 w-px bg-[var(--mark)] opacity-25 pointer-events-none" />
                                 <div className="pl-12 sm:pl-16 pr-5 sm:pr-10 py-8 sm:py-10">
                                     <textarea
+                                        key={note.id}
                                         ref={titleElRef}
                                         value={title}
                                         rows={1}
@@ -596,7 +639,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                                 editorRef.current?.focus();
                                             }
                                         }}
-                                        className="w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60 resize-none overflow-hidden"
+                                        className="ink-write w-full bg-transparent border-0 focus:outline-none font-serif text-[28px] sm:text-[32px] font-bold leading-tight tracking-[-0.01em] text-ink placeholder:text-ink-3/60 placeholder:font-hand placeholder:font-medium resize-none overflow-hidden"
                                         placeholder="Untitled"
                                         aria-label="Note title"
                                     />
@@ -617,7 +660,7 @@ const EditorView: React.FC<EditorViewProps> = ({
                                         )}
                                         <div
                                             ref={editorRef}
-                                            className="note-body outline-none min-h-[55vh] caret-[var(--mark)]"
+                                            className="note-body ruled outline-none min-h-[55vh] caret-[var(--mark)]"
                                             style={{ fontSize, outline: 'none' }}
                                             contentEditable
                                             suppressContentEditableWarning

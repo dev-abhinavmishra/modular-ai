@@ -81,12 +81,30 @@ const renderWidget = (type: string, data: any) => {
     }
 };
 
+const freshMessages = (): ChatMessage[] => [{
+    id: 'init',
+    role: 'model',
+    text: "Ask about anything across your notes — I can quiz you, build timelines, compare ideas, or pull out takeaways.",
+    timestamp: new Date()
+}];
+
+/* The live conversation lives at module scope so switching to another view
+   and back doesn't wipe an in-progress session (the view unmounts on
+   navigation — server persistence only runs after a successful reply). */
+const liveAsk: { messages: ChatMessage[] | null; sessionId: string | null; transientError: string | null } = {
+    messages: null,
+    sessionId: null,
+    transientError: null,
+};
+
 const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachments = [], setContextualAttachments }) => {
     const [query, setQuery] = useState("");
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>(() => liveAsk.messages ?? freshMessages());
+    const [transientError, setTransientError] = useState<string | null>(() => liveAsk.transientError);
     const [loading, setLoading] = useState(false);
     const [sessions, setSessions] = useState<any[]>([]);
-    const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+    const [sessionsError, setSessionsError] = useState(false);
+    const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => liveAsk.sessionId);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -95,16 +113,36 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
     useEffect(() => {
         fetchSessions();
-        handleNewSession();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Mirror the live conversation into the module-scope store.
+    useEffect(() => {
+        liveAsk.messages = messages;
+        liveAsk.sessionId = currentSessionId;
+        liveAsk.transientError = transientError;
+    }, [messages, currentSessionId, transientError]);
+
+    /* Write-through: handleSend keeps running after this view unmounts on
+       navigation, so the reply must reach liveAsk even when setState is a
+       no-op on the dead component. */
+    const commitMessages = (msgs: ChatMessage[]) => {
+        setMessages(msgs);
+        liveAsk.messages = msgs;
+    };
+    const commitError = (text: string | null) => {
+        setTransientError(text);
+        liveAsk.transientError = text;
+    };
 
     const fetchSessions = async () => {
         try {
             const data = await getAnalysisSessions();
             setSessions(data);
+            setSessionsError(false);
         } catch (err) {
             console.error("Failed to fetch sessions", err);
+            setSessionsError(true);
         }
     };
 
@@ -112,14 +150,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         setCurrentSessionId(null);
         setQuery("");
         if (setContextualAttachments) setContextualAttachments([]);
-        setMessages([
-            {
-                id: 'init',
-                role: 'model',
-                text: "Ask about anything across your notes — I can quiz you, build timelines, compare ideas, or pull out takeaways.",
-                timestamp: new Date()
-            }
-        ]);
+        commitMessages(freshMessages());
+        commitError(null);
     };
 
     const handleLoadSession = async (id: string) => {
@@ -129,7 +161,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
             setCurrentSessionId(data.id);
             setQuery("");
             if (setContextualAttachments) setContextualAttachments([]);
-            setMessages(data.messages.map((m: any) => ({
+            commitError(null);
+            commitMessages(data.messages.map((m: any) => ({
                 ...m,
                 timestamp: new Date(m.timestamp)
             })));
@@ -181,7 +214,8 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: finalQuery, timestamp: new Date() };
         const newMessages = [...messages, userMsg];
-        setMessages(newMessages);
+        commitMessages(newMessages);
+        commitError(null);
         setQuery("");
 
         if (setContextualAttachments) {
@@ -191,29 +225,41 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
         setLoading(true);
 
         try {
-            const responseText = await generateGlobalAnalysis(
+            const result = await generateGlobalAnalysis(
                 notes,
                 finalQuery,
                 messages.map(m => ({ role: m.role, text: m.text }))
             );
 
-            const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: responseText, timestamp: new Date() };
+            if (result.error) {
+                // Degraded reply: transient notice rendered under the thread —
+                // never model output, never sent back as history, never saved.
+                commitError(result.error);
+                return;
+            }
+
+            const aiMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: result.content, provider: result.provider, timestamp: new Date() };
             const finalMessages = [...newMessages, aiMsg];
-            setMessages(finalMessages);
+            commitMessages(finalMessages);
 
             let title = currentSessionId ? sessions.find(s => s.id === currentSessionId)?.title : null;
             if (!title) {
                 title = await generateTitle(originalQuery || "Ask session");
             }
 
-            const saved = await saveAnalysisSession({
-                id: currentSessionId || undefined,
-                title,
-                messages: finalMessages
-            });
-
-            if (!currentSessionId) setCurrentSessionId(saved.id);
-            fetchSessions();
+            try {
+                const saved = await saveAnalysisSession({
+                    id: currentSessionId || undefined,
+                    title,
+                    messages: finalMessages
+                });
+                if (!currentSessionId) setCurrentSessionId(saved.id);
+                fetchSessions();
+            } catch (err) {
+                // No backend persistence available — the live copy in the
+                // module store keeps the conversation through navigation.
+                console.error("Could not persist session", err);
+            }
         } catch (err) {
             console.error("Analysis failed", err);
         } finally {
@@ -348,7 +394,11 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
 
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sessions.length === 0 && (
-                        <p className="text-xs text-ink-3 px-2 py-6">Past conversations will list here.</p>
+                        <p className="text-xs text-ink-3 px-2 py-6">
+                            {sessionsError
+                                ? 'Could not load past sessions — the backend is unreachable.'
+                                : 'Past conversations will list here.'}
+                        </p>
                     )}
                     {sessions.map(s => (
                         <div
@@ -381,18 +431,18 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                 <header className="h-14 border-b border-line flex items-center px-3 md:px-5 shrink-0 gap-2">
                     <IconBtn icon={sidebarOpen ? 'menu_open' : 'menu'} title="Toggle sessions" onClick={() => setSidebarOpen(o => !o)} />
                     <div className="h-4 w-px bg-[var(--line-2)] hidden md:block" />
-                    <h1 className="font-serif text-xl text-ink">Ask</h1>
+                    <h1 className="font-serif text-xl text-ink ink-write ink-underline">Ask</h1>
                     <span className="font-mono text-[10px] text-ink-3 ml-1">{notes.length} notes in context</span>
                 </header>
 
                 {/* Messages */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 custom-scrollbar">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 lg:pl-[76px] py-6 custom-scrollbar page-lines">
                     {messages.length <= 1 && !loading ? (
                         <div className="h-full flex flex-col items-center justify-center text-center rise">
                             <div className="w-11 h-11 rounded-[var(--r-lg)] bg-card border border-line shadow-card flex items-center justify-center">
                                 <Icon name="forum" size={20} className="text-mark" />
                             </div>
-                            <h2 className="font-serif text-[26px] text-ink mt-5">Ask your notes</h2>
+                            <h2 className="font-serif text-[26px] text-ink mt-5 ink-write ink-underline" style={{ '--ink-delay': '0.15s' } as React.CSSProperties}>Ask your notes</h2>
                             <p className="text-[13px] text-ink-2 mt-2.5 max-w-md leading-relaxed">
                                 Quiz yourself, build timelines, compare ideas, or pull out takeaways — across your whole library.
                             </p>
@@ -446,6 +496,17 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ notes, contextualAttachment
                             </div>
                             <div className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-4">
                                 <ThinkingRow label="reading your notes" />
+                            </div>
+                        </div>
+                    )}
+
+                    {transientError && !loading && (
+                        <div className="flex gap-3">
+                            <div className="w-7 h-7 rounded-[var(--r)] bg-card border border-line flex items-center justify-center shrink-0 shadow-card mt-0.5">
+                                <Icon name="chat" size={14} className="text-ink-3" />
+                            </div>
+                            <div className="px-4 py-3 rounded-[var(--r-lg)] text-[13px] leading-relaxed border border-dashed border-line text-ink-3 italic">
+                                {transientError}
                             </div>
                         </div>
                     )}

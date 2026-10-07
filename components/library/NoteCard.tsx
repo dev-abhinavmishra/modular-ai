@@ -14,7 +14,7 @@ const TYPE_ICON: Record<Note['type'], string> = {
 };
 
 const metaLine = (note: Note) =>
-    [shortDate(note.date), note.type.toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
+    [shortDate(note.date), (note.type || 'text').toLowerCase(), showDuration(note.duration)].filter(Boolean).join(' · ');
 
 // First lines of body text as a preview, like a peek at the card's contents.
 const snippetOf = (html: string): string =>
@@ -92,7 +92,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 >
                     <CheckBox checked={selected} visible={selectionActive} />
                 </button>
-                <Icon name={TYPE_ICON[note.type]} size={16} className="relative z-10 text-ink-3 shrink-0" />
+                <Icon name={TYPE_ICON[note.type] || 'description'} size={16} className="relative z-10 text-ink-3 shrink-0" />
                 <span className="relative z-10 font-serif text-[15px] text-ink truncate shrink-0 max-w-[40%]">
                     {note.title || 'Untitled'}
                 </span>
@@ -122,7 +122,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
         <Card
             interactive
             onClick={handleOpen}
-            className={`group relative flex flex-col overflow-hidden ${compact ? 'min-h-[150px]' : 'min-h-[186px]'}`}
+            className={`group relative flex flex-col overflow-visible ${compact ? 'min-h-[150px]' : 'min-h-[186px]'} ${note.isBookmarked ? 'tape' : ''}`}
         >
             {selected && <SelectedVeil />}
 
@@ -141,7 +141,7 @@ const NoteCard: React.FC<NoteCardProps> = ({
                 />
             </div>
 
-            <div className={`relative z-10 px-4 ${compact ? 'pt-1' : 'pt-2'} flex-1 flex flex-col min-w-0`}>
+            <div className={`relative z-10 px-4 ${compact ? 'pt-1' : 'pt-2'} pb-2 flex-1 flex flex-col min-w-0 card-ruled`}>
                 <h3 className={`font-serif text-ink leading-snug line-clamp-2 ${compact ? 'text-[15px]' : 'text-[17px]'}`}>
                     {note.title || 'Untitled'}
                 </h3>

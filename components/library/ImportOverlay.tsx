@@ -29,6 +29,32 @@ const PHASE_LABEL: Record<ImportPhase, string> = {
 
 const newNoteId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* Plain text → paragraph HTML for imported notes. Keeps the file's own
+   words verbatim — an import must never rewrite (or lose) the source. */
+const textToNoteHtml = (text: string): string => {
+    const blocks = text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+    if (blocks.length === 0) return '<p></p>';
+    // Keep leading indentation verbatim (code, lists) — HTML collapses it.
+    const preserveIndent = (line: string) =>
+        line.replace(/^[\t ]+/, ws => ws.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;'));
+    return blocks
+        .map(b => `<p>${escapeHtml(b).split('\n').map(preserveIndent).join('<br/>')}</p>`)
+        .join('');
+};
+
+/* Try the AI structuring pass; fall back to the verbatim text so a provider
+   outage still imports the file's real content instead of an error body. */
+const structureOrVerbatim = async (text: string, title?: string): Promise<{ content: string; aiFailed: boolean }> => {
+    try {
+        return { content: await generateNoteFromTranscript(text, title), aiFailed: false };
+    } catch {
+        return { content: textToNoteHtml(text), aiFailed: true };
+    }
+};
+
 const readFileAsBase64 = (f: File, onProgress: (pct: number) => void): Promise<string> =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -66,7 +92,7 @@ const processFile = async (file: File, onPhase: (phase: ImportPhase, progress?: 
             throw new Error('This PDF looks scanned or image-only — try exporting a page as an image.');
         }
         onPhase('structuring');
-        const content = await generateNoteFromTranscript(extractedText.substring(0, 100000), file.name);
+        const { content } = await structureOrVerbatim(extractedText.substring(0, 100000), file.name);
         return {
             ...base,
             title: file.name.replace(/\.pdf$/i, ''),
@@ -101,7 +127,7 @@ const processFile = async (file: File, onPhase: (phase: ImportPhase, progress?: 
             throw new Error('Could not detect any speech in this audio file.');
         }
         onPhase('structuring');
-        const content = await generateNoteFromTranscript(transcript.substring(0, 100000), file.name);
+        const { content } = await structureOrVerbatim(transcript.substring(0, 100000), file.name);
         return {
             ...base,
             title: file.name.replace(/\.[^.]+$/, ''),
@@ -114,10 +140,10 @@ const processFile = async (file: File, onPhase: (phase: ImportPhase, progress?: 
     }
 
     if (isText) {
+        // Text/markdown imports are verbatim — no AI call, no quota spent.
         const text = await file.text();
         onPhase('structuring');
-        const content = await generateNoteFromTranscript(text.substring(0, 20000), file.name);
-        return { ...base, title: file.name, content, transcript: text, type: 'TEXT', tags: ['Imported', 'Text'] };
+        return { ...base, title: file.name, content: textToNoteHtml(text), transcript: text, type: 'TEXT', tags: ['Imported', 'Text'] };
     }
 
     if (isDocx) {
@@ -125,7 +151,7 @@ const processFile = async (file: File, onPhase: (phase: ImportPhase, progress?: 
         onPhase('extracting');
         const text = (await mammoth.extractRawText({ arrayBuffer })).value;
         onPhase('structuring');
-        const content = await generateNoteFromTranscript(text.substring(0, 20000), file.name);
+        const { content } = await structureOrVerbatim(text.substring(0, 20000), file.name);
         return { ...base, title: file.name, content, transcript: text, type: 'TEXT', tags: ['Imported', 'Word Doc'] };
     }
 
@@ -203,7 +229,7 @@ const DropVeil: React.FC = () => (
     >
         <div className="w-full max-w-lg rounded-[var(--r-lg)] border-2 border-dashed border-[var(--mark)] bg-[var(--card)] shadow-pop px-8 py-14 flex flex-col items-center text-center">
             <Icon name="upload_file" size={30} className="text-mark mb-4" />
-            <p className="font-serif text-xl text-ink">Drop files to import</p>
+            <p className="font-serif text-xl text-ink ink-write">Drop files to import</p>
             <p className="text-sm text-ink-2 mt-1.5">PDF, Word, image, audio, or text — up to 20MB each.</p>
             <div className="flex gap-1.5 mt-4 flex-wrap justify-center">
                 {['.pdf', '.docx', '.txt', '.jpg', '.mp3'].map(ext => (

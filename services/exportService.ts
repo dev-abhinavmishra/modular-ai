@@ -1,4 +1,4 @@
-import { Note, Deck, Quiz, NoteVersion } from '../types';
+import { Note, Deck, Quiz, NoteVersion, Attachment } from '../types';
 import { getAllNotes, getAllDecks, getAllQuizzes, getAllNoteVersions, saveNote, saveDeck, saveQuiz, putNoteVersions } from './storageService';
 import { sanitizeHtml } from './sanitize';
 
@@ -121,16 +121,83 @@ export const exportBackup = async () => {
     download(`modular-notes-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json');
 };
 
-/** Import a backup file. Returns counts of restored entities. */
-export const importBackup = async (file: File): Promise<{ notes: number; decks: number; quizzes: number }> => {
+const NOTE_TYPES = new Set(['AUDIO', 'PDF', 'VIDEO', 'TEXT', 'IMAGE']);
+
+/* One malformed record must never brick the library — skip entries that
+   don't satisfy the minimum shape instead of storing them verbatim. */
+const isValidNote = (n: any): n is Note =>
+    !!n && typeof n.id === 'string' && n.id.length > 0 &&
+    typeof n.title === 'string' &&
+    typeof n.content === 'string' &&
+    typeof n.date === 'string' &&
+    typeof n.type === 'string' && NOTE_TYPES.has(n.type) &&
+    Array.isArray(n.tags);
+
+const isValidAttachment = (a: any): a is Attachment =>
+    !!a && (a.type === 'image' || a.type === 'text' || a.type === 'pdf') &&
+    typeof a.content === 'string' && typeof a.name === 'string';
+
+/* The file is untrusted input: coerce out any junk nested inside a record
+   that passed the shape check rather than storing it verbatim. */
+const sanitizeNote = (n: Note): Note => {
+    n.tags = n.tags.filter((t: any) => typeof t === 'string');
+    if (n.attachments !== undefined) {
+        if (!Array.isArray(n.attachments)) delete n.attachments;
+        else n.attachments = n.attachments.filter(isValidAttachment);
+    }
+    if (n.pinnedMoments !== undefined && !Array.isArray(n.pinnedMoments)) delete n.pinnedMoments;
+    if (n.sourceData !== undefined &&
+        (!n.sourceData || typeof n.sourceData.mimeType !== 'string' || typeof n.sourceData.data !== 'string')) {
+        delete n.sourceData;
+    }
+    return n;
+};
+
+const isValidCard = (c: any): boolean =>
+    !!c && typeof c.id === 'string' && typeof c.front === 'string' && typeof c.back === 'string';
+
+const isValidDeck = (d: any): d is Deck =>
+    !!d && typeof d.id === 'string' && typeof d.title === 'string' &&
+    Array.isArray(d.cards) && d.cards.every(isValidCard);
+
+const isValidQuestion = (q: any): boolean =>
+    !!q && typeof q.question === 'string' &&
+    Array.isArray(q.options) && q.options.every((o: any) => typeof o === 'string') &&
+    typeof q.answer === 'string';
+
+const isValidQuiz = (q: any): q is Quiz =>
+    !!q && typeof q.id === 'string' && typeof q.title === 'string' &&
+    Array.isArray(q.questions) && q.questions.every(isValidQuestion);
+
+const isValidVersion = (v: any): v is NoteVersion =>
+    !!v && typeof v.id === 'string' && typeof v.noteId === 'string' && typeof v.content === 'string';
+
+/** Import a backup file. Returns counts of restored + skipped entities. */
+export const importBackup = async (file: File): Promise<{ notes: number; decks: number; quizzes: number; skipped: number }> => {
     const text = await file.text();
     const data = JSON.parse(text);
     if (data?.app !== 'modular-ai-notes' || !Array.isArray(data.notes)) {
         throw new Error('Not a Modular Notes backup file.');
     }
-    for (const n of data.notes as Note[]) await saveNote(n);
-    for (const d of (data.decks || []) as Deck[]) await saveDeck(d);
-    for (const q of (data.quizzes || []) as Quiz[]) await saveQuiz(q);
-    if (Array.isArray(data.versions)) await putNoteVersions(data.versions as NoteVersion[]);
-    return { notes: data.notes.length, decks: (data.decks || []).length, quizzes: (data.quizzes || []).length };
+    let skipped = 0;
+    let notes = 0;
+    for (const n of data.notes) {
+        if (isValidNote(n)) { await saveNote(sanitizeNote(n)); notes++; } else skipped++;
+    }
+    let decks = 0;
+    for (const d of (data.decks || [])) {
+        if (isValidDeck(d)) { await saveDeck(d); decks++; } else skipped++;
+    }
+    let quizzes = 0;
+    for (const q of (data.quizzes || [])) {
+        if (isValidQuiz(q)) {
+            if (!Array.isArray(q.attempts)) q.attempts = []; // older backups may lack it
+            await saveQuiz(q);
+            quizzes++;
+        } else skipped++;
+    }
+    if (Array.isArray(data.versions)) {
+        await putNoteVersions((data.versions as any[]).filter(isValidVersion));
+    }
+    return { notes, decks, quizzes, skipped };
 };

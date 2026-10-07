@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* "Index" primitives — the only sanctioned building blocks.
@@ -165,12 +165,40 @@ export const Segmented: React.FC<{
 );
 
 /* ---- Modal & popover ---- */
+
+/* Open modals stack: only the topmost one owns Escape. A hidden modal must
+   not swallow the press meant for the modal rendered above it. */
+const modalStack: symbol[] = [];
+
 export const Modal: React.FC<{
     open: boolean;
     onClose: () => void;
     children: React.ReactNode;
     width?: string;
-}> = ({ open, onClose, children, width = 'max-w-md' }) => (
+}> = ({ open, onClose, children, width = 'max-w-md' }) => {
+    const idRef = useRef(Symbol('modal'));
+    /* Escape dismisses the modal. Capture phase so a view-level Escape
+       handler (e.g. the editor's) doesn't also fire for the same press. */
+    useEffect(() => {
+        if (!open) return;
+        const id = idRef.current;
+        modalStack.push(id);
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            if (modalStack[modalStack.length - 1] !== id) return;
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            onClose();
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => {
+            window.removeEventListener('keydown', onKey, true);
+            const i = modalStack.indexOf(id);
+            if (i !== -1) modalStack.splice(i, 1);
+        };
+    }, [open, onClose]);
+
+    return (
     <AnimatePresence>
         {open && (
             <motion.div
@@ -192,7 +220,8 @@ export const Modal: React.FC<{
             </motion.div>
         )}
     </AnimatePresence>
-);
+    );
+};
 
 /* ---- Feedback ---- */
 export const EmptyState: React.FC<{
@@ -206,7 +235,7 @@ export const EmptyState: React.FC<{
         <div className="w-12 h-12 rounded-[var(--r-lg)] border border-[var(--line)] bg-[var(--card)] flex items-center justify-center mb-4 shadow-card">
             <Icon name={icon} size={22} className="text-ink-3" />
         </div>
-        <h3 className="font-serif text-lg text-ink">{title}</h3>
+        <h3 className="font-serif text-lg text-ink ink-write">{title}</h3>
         {body && <p className="text-sm text-ink-2 mt-1.5 max-w-sm">{body}</p>}
         {action && <div className="mt-5">{action}</div>}
     </div>

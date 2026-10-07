@@ -14,7 +14,7 @@ const NoteMetaBar: React.FC<NoteMetaBarProps> = ({ date, duration, words, saveSt
     const readMin = Math.max(1, Math.ceil(words / 200));
     const dur = showDuration(duration);
     return (
-        <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 font-mono text-[11px] text-ink-3 mt-1.5">
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 font-hand text-[17px] text-ink-3 mt-1.5">
             <span>{shortDate(date)}</span>
             {dur && (
                 <>

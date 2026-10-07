@@ -31,7 +31,7 @@ const Row: React.FC<{ title: string; hint?: string; children: React.ReactNode }>
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="bg-card border border-line rounded-[var(--r-lg)] shadow-card px-5 md:px-6">
-        <h2 className="font-serif text-lg text-ink pt-5 pb-1">{title}</h2>
+        <h2 className="font-hand text-[24px] text-ink pt-5 pb-1">{title}</h2>
         <div className="divide-y divide-[var(--line)]">{children}</div>
     </section>
 );
@@ -55,7 +55,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings,
     setImportStatus('Importing…');
     try {
         const counts = await importBackup(file);
-        setImportStatus(`Imported ${counts.notes} notes, ${counts.decks} decks, ${counts.quizzes} quizzes.`);
+        setImportStatus(`Imported ${counts.notes} notes, ${counts.decks} decks, ${counts.quizzes} quizzes.${counts.skipped ? ` Skipped ${counts.skipped} invalid record${counts.skipped === 1 ? '' : 's'}.` : ''}`);
         onNotesChanged?.();
     } catch (err: any) {
         setImportStatus(err?.message || 'Import failed — not a valid backup file.');
@@ -70,9 +70,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSettings,
   ];
 
   return (
-    <main className="flex-1 flex flex-col min-w-0 relative bg-paper overflow-y-auto custom-scrollbar">
+    <main className="flex-1 flex flex-col min-w-0 relative bg-paper overflow-y-auto custom-scrollbar page-lines lg:pl-[76px]">
       <header className="shrink-0 h-14 border-b border-line flex items-center px-4 md:px-6">
-        <h1 className="font-serif text-xl text-ink">Settings</h1>
+        <h1 className="font-serif text-xl text-ink ink-write ink-underline">Settings</h1>
       </header>
 
       <div className="max-w-2xl mx-auto w-full px-4 md:px-6 py-8 space-y-6">

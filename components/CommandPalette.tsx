@@ -60,6 +60,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, notes, o
         { kind: 'action', id: 'notes', icon: 'note_stack', label: 'Go to Notes', run: () => onNavigate(View.LIBRARY) },
         { kind: 'action', id: 'ask', icon: 'forum', label: 'Go to Ask', run: () => onNavigate(View.ANALYSIS) },
         { kind: 'action', id: 'study', icon: 'style', label: 'Go to Study', run: () => onNavigate(View.STUDY) },
+        { kind: 'action', id: 'pinned', icon: 'keep', label: 'Go to Pinned', run: () => onNavigate(View.BOOKMARKS) },
+        { kind: 'action', id: 'recent', icon: 'history', label: 'Go to Recently viewed', run: () => onNavigate(View.HISTORY) },
         { kind: 'action', id: 'settings', icon: 'settings', label: 'Go to Settings', run: () => onNavigate(View.SETTINGS) },
     ]), [onNewNote, onNavigate]);
 
@@ -202,7 +204,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, notes, o
                                                     {n.title || 'Untitled'}
                                                 </span>
                                                 <span className="ml-auto shrink-0 font-mono text-[10px] text-ink-3">
-                                                    {n.type.toLowerCase()} · {shortDate(n.date)}
+                                                    {(n.type || 'text').toLowerCase()} · {shortDate(n.date)}
                                                 </span>
                                             </button>
                                         );

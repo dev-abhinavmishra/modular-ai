@@ -15,7 +15,7 @@ const DeckGrid: React.FC<DeckGridProps> = ({ decks, onOpen, onEdit, onNew }) => 
         {decks.map(deck => {
             const due = dueCards(deck).length;
             return (
-                <Card key={deck.id} interactive onClick={() => onOpen(deck)} className="p-4 group relative">
+                <Card key={deck.id} interactive onClick={() => onOpen(deck)} className="p-4 group relative sheet-ruled">
                     <div className="flex items-start justify-between gap-2">
                         <h3 className="font-serif text-lg leading-snug text-ink line-clamp-2 min-h-[1.5em]">
                             {deck.title || 'Untitled deck'}

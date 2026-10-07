@@ -95,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onUpgrade,
             <div className="h-14 flex items-center justify-center lg:justify-start lg:px-4 border-b border-line shrink-0">
                 <div className="flex items-center gap-2.5">
                     <CardMark />
-                    <span className="font-serif text-[17px] font-semibold text-ink hidden lg:block">Modular Notes</span>
+                    <span className="font-hand text-[22px] font-semibold text-ink hidden lg:block -rotate-1">Modular Notes</span>
                 </div>
             </div>
 

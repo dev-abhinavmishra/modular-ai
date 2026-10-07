@@ -166,7 +166,7 @@ const StudyView: React.FC<StudyViewProps> = ({ notes, onOpenNote }) => {
     return (
         <main className="flex-1 flex flex-col min-w-0 bg-paper">
             <header className="h-14 shrink-0 border-b border-line flex items-center px-6 gap-3">
-                <h1 className="font-serif text-xl text-ink">Study</h1>
+                <h1 className="font-serif text-xl text-ink ink-write ink-underline">Study</h1>
                 <span className={`font-mono text-xs ${due > 0 ? 'text-mark' : 'text-ink-3'}`}>{due} due</span>
                 <span className="flex-1" />
                 <Segmented
@@ -179,7 +179,7 @@ const StudyView: React.FC<StudyViewProps> = ({ notes, onOpenNote }) => {
                 </Btn>
             </header>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar page-lines lg:pl-[76px]">
                 <div className="max-w-5xl mx-auto px-6 py-6">
                     {!loaded ? (
                         <div className="flex items-center justify-center py-24"><Spinner /></div>

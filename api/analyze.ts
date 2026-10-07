@@ -1,5 +1,5 @@
 import { chatCompletion, ChatMessage } from './_providers';
-import { enforceLimit } from './_usage';
+import { reserveLimit } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -15,8 +15,8 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const usage = await enforceLimit(req, res);
-    if (!usage) return; // 429 already sent
+    const ticket = await reserveLimit(req, res);
+    if (!ticket) return; // 429 already sent
 
     try {
         const { notes, query, history } = readJsonBody(req);
@@ -85,6 +85,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ content: content || 'Unable to synthesize response.', provider });
     } catch (error: any) {
         console.error('Analysis API Error:', error);
+        await ticket.refund();
         return res.status(503).json({ error: error.message || 'All AI providers are currently unavailable.' });
     }
 }

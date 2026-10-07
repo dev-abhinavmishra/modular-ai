@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { enforceLimit } from './_usage';
+import { reserveLimit } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -27,6 +27,7 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    let ticket: Awaited<ReturnType<typeof reserveLimit>> = null;
     try {
         const { action, text, context } = readJsonBody(req) as { action?: string; text?: string; context?: string };
 
@@ -36,8 +37,8 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'Missing text' });
         }
 
-        const usage = await enforceLimit(req, res);
-        if (!usage) return; // 429 already sent
+        ticket = await reserveLimit(req, res);
+        if (!ticket) return; // 429 already sent
 
         const source = (context ? `Context:\n${context.slice(0, 30000)}\n\nSelection:\n${text.slice(0, 20000)}` : text.slice(0, 50000));
         const { content, provider } = await chatCompletion(
@@ -49,6 +50,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ content: content.trim(), provider });
     } catch (error: any) {
         console.error('Action API Error:', error);
+        if (ticket) await ticket.refund();
         return res.status(500).json({ error: error?.message || 'Internal Server Error' });
     }
 }

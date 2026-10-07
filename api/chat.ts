@@ -1,5 +1,5 @@
 import { chatCompletion, ChatMessage } from './_providers';
-import { enforceLimit } from './_usage';
+import { reserveLimit } from './_usage';
 import { readJsonBody } from './_http';
 
 export default async function handler(req: any, res: any) {
@@ -7,9 +7,9 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Enforce the daily free-usage limit before doing any AI work.
-    const usage = await enforceLimit(req, res);
-    if (!usage) return; // 429 already sent
+    // Reserve one use atomically; a failed reply refunds it.
+    const ticket = await reserveLimit(req, res);
+    if (!ticket) return; // 429 already sent
 
     try {
         const { history, context, userMessage } = readJsonBody(req);
@@ -39,6 +39,7 @@ Answer the user's questions based strictly on this context. Be concise, academic
         return res.status(200).json({ content: content || "I couldn't generate a response.", provider });
     } catch (error: any) {
         console.error('Chat API Error:', error);
+        await ticket.refund();
         return res.status(503).json({ error: error.message || 'All AI providers are currently unavailable.' });
     }
 }

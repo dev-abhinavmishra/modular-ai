@@ -1,5 +1,5 @@
 import { chatCompletion } from './_providers';
-import { enforceLimit } from './_usage';
+import { reserveLimit } from './_usage';
 import { readJsonBody } from './_http';
 
 export const config = {
@@ -15,8 +15,8 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const usage = await enforceLimit(req, res);
-    if (!usage) return; // 429 already sent
+    const ticket = await reserveLimit(req, res);
+    if (!ticket) return; // 429 already sent
 
     try {
         const { base64Data, mimeType, fileName } = readJsonBody(req);
@@ -93,6 +93,7 @@ export default async function handler(req: any, res: any) {
         });
     } catch (error: any) {
         console.error('Document API Error:', error);
+        await ticket.refund();
         return res.status(503).json({ error: error.message || 'All AI providers are currently unavailable.' });
     }
 }
